@@ -6,6 +6,31 @@ CARD = ROOT / "src" / "dynamic-energy-price-card.js"
 
 
 class CardSourceTests(unittest.TestCase):
+    def test_native_sections_sizing_and_optional_title(self):
+        card = CARD.read_text(encoding='utf-8')
+        self.assertIn('getGridOptions()', card)
+        self.assertIn('columns: 12', card)
+        self.assertIn('min_columns: 9', card)
+        self.assertIn('rows: hasCheapestTable ? 9 : 6', card)
+        self.assertIn('min_rows: hasCheapestTable ? 6 : 4', card)
+        self.assertIn('show_title: true', card)
+        self.assertIn("name: 'show_title'", card)
+        self.assertIn("showTitle ?", card)
+        self.assertIn('class="header-cheapest"', card)
+        self.assertIn('height: 100%', card)
+        self.assertIn('flex: 1 1 300px', card)
+        self.assertIn('overflow: auto', card)
+
+    def test_hover_marker_stays_round_when_chart_resizes(self):
+        card = CARD.read_text(encoding='utf-8')
+        self.assertNotIn('<circle class="hover-dot"', card)
+        self.assertIn('<span class="hover-dot"', card)
+        self.assertIn("dot.style.left =", card)
+        self.assertIn("dot.style.top =", card)
+        self.assertIn('border-radius: 50%', card)
+        self.assertIn('width: 12px', card)
+        self.assertIn('height: 12px', card)
+
     def test_mobile_hover_interaction_is_dismissible(self):
         card = CARD.read_text(encoding='utf-8')
         self.assertIn("line?.removeAttribute('hidden')", card)

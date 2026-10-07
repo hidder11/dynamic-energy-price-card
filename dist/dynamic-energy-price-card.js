@@ -207,6 +207,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
   const labels = {
     entity: 'Prijsentity',
     title: 'Titel',
+    show_title: 'Titel tonen',
     show_hover_line: 'Verticale hoverlijn',
     show_average_line: 'Gemiddelde prijslijn',
     cheap_price: 'Goedkoop',
@@ -233,6 +234,13 @@ class DynamicEnergyPriceCard extends HTMLElement {
         name: 'title',
         selector: {
           text: {},
+        },
+      },
+
+      {
+        name: 'show_title',
+        selector: {
+          boolean: {},
         },
       },
 
@@ -333,6 +341,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
 
     computeHelper: (schema) => {
       switch (schema.name) {
+        case 'show_title':
+          return 'Verberg de titel om de goedkoopste-urencontext op die plek te tonen.';
         case 'show_hover_line':
           return 'Toont een verticale hulplijn bij het actieve prijsinterval.';
         case 'show_average_line':
@@ -360,6 +370,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     return {
       entity: 'sensor.tibber_prijzen',
       title: 'Dynamische energieprijzen',
+      show_title: true,
       show_hover_line: true,
       show_average_line: false,
       cheap_price: 0.15,
@@ -375,6 +386,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     if (!config?.entity) throw new Error('Een Tibber-prijsentity is verplicht.');
     this._config = {
       title: 'Dynamische energieprijzen',
+      show_title: true,
       show_hover_line: true,
       show_average_line: false,
       cheap_price: 0.15,
@@ -394,7 +406,20 @@ class DynamicEnergyPriceCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 6;
+    const hasCheapestTable = isCheapestHoursEnabled(this._config?.cheapest_hours)
+      && Boolean(this._config?.show_cheapest_table);
+    return hasCheapestTable ? 9 : 6;
+  }
+
+  getGridOptions() {
+    const hasCheapestTable = isCheapestHoursEnabled(this._config?.cheapest_hours)
+      && Boolean(this._config?.show_cheapest_table);
+    return {
+      rows: hasCheapestTable ? 9 : 6,
+      columns: 12,
+      min_rows: hasCheapestTable ? 6 : 4,
+      min_columns: 9,
+    };
   }
 
   set hass(hass) {
@@ -570,9 +595,15 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const currentBadge = currentIsSelected
       ? '<div class="current-window active">Goedkoopst</div>'
       : '';
-    const legend = cheapestEnabled
+    const showTitle = this._config.show_title !== false;
+    const cheapestLabel = `Goedkoopste ${escapeHtml(this._config.cheapest_hours)} uur/dag`;
+    const heading = showTitle ? `<div class="heading"><h2>${escapeHtml(this._config.title)}</h2></div>`
+      : cheapestEnabled
+        ? `<div class="heading"><div class="header-cheapest"><i class="swatch selection"></i>${cheapestLabel}</div></div>`
+        : '';
+    const legend = cheapestEnabled && showTitle
       ? `<div class="legend" aria-label="Legenda">
-          <span><i class="swatch selection"></i>Goedkoopste ${escapeHtml(this._config.cheapest_hours)} uur/dag</span>
+          <span><i class="swatch selection"></i>${cheapestLabel}</span>
         </div>`
       : '';
     const cheapestPeriods = groupSelectedPeriods(points, selected, intervalMinutes);
@@ -609,9 +640,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       <ha-card>
         <div class="card-content">
           <header class="header">
-            <div class="heading">
-              <h2>${escapeHtml(this._config.title)}</h2>
-            </div>
+            ${heading}
             <div class="current-block">
               <div class="current ${currentClass}" aria-label="Huidige prijs ${currentPrice === null ? 'onbekend' : `${currentPriceText} cent per kilowattuur`}">
                 <strong>${currentPriceText}</strong><span>ct/kWh</span>
@@ -643,8 +672,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
               ${dayMarkers}
               ${nowMarker}
               ${hoverLine}
-              <circle class="hover-dot" cx="0" cy="0" r="6" hidden />
             </svg>
+            <span class="hover-dot" hidden></span>
             ${yLabels}
             ${levelLabels}
             ${averageLabel}
@@ -741,8 +770,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
       line.setAttribute('x2', x);
     }
     dot.removeAttribute('hidden');
-    dot.setAttribute('cx', x);
-    dot.setAttribute('cy', y);
+    dot.style.left = `${(x / this._chart.svgWidth) * 100}%`;
+    dot.style.top = `${(y / this._chart.svgHeight) * 100}%`;
     dot.setAttribute('class', `hover-dot ${priceClass}`);
     tooltip.hidden = false;
     tooltip.innerHTML = `<strong>${formatPrice(point.price)} ct/kWh</strong>
@@ -772,14 +801,16 @@ class DynamicEnergyPriceCard extends HTMLElement {
         --cheapest-fill: color-mix(in srgb, var(--cheap) 13%, transparent);
         --cheapest-stripe: color-mix(in srgb, var(--cheap) 42%, transparent);
         display: block;
+        height: 100%;
       }
-      ha-card { overflow: hidden; }
-      .card-content { padding: 16px 16px 12px; color: var(--primary-text-color); }
+      ha-card { overflow: hidden; height: 100%; }
+      .card-content { display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; height: 100%; padding: 16px 16px 12px; color: var(--primary-text-color); }
       .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
       .heading { min-width: 0; }
       h2 { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 650; letter-spacing: -0.01em; }
       .heading p { margin: 5px 0 0; color: var(--secondary-text-color); font-size: 12px; }
-      .current-block { display: grid; justify-items: end; gap: 5px; flex: none; }
+      .header-cheapest { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; color: var(--secondary-text-color); font-size: 12px; font-weight: 600; }
+      .current-block { display: grid; justify-items: end; gap: 5px; flex: none; margin-left: auto; }
       .current { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 5px; padding: 7px 10px; border-radius: 8px; background: var(--secondary-background-color); font-variant-numeric: tabular-nums; }
       .current strong { font-size: 22px; line-height: 1; }
       .current span { font-size: 11px; color: var(--secondary-text-color); }
@@ -796,7 +827,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .swatch.cheap { background: var(--cheap); }
       .swatch.expensive { background: var(--expensive); }
       .swatch.selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--cheap) 45%, transparent); }
-      .chart { position: relative; height: 300px; outline: none; touch-action: pan-y; }
+      .chart { position: relative; flex: 1 1 300px; min-height: 120px; outline: none; touch-action: pan-y; }
       .chart:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); border-radius: 8px; }
       svg { display: block; width: 100%; height: 100%; overflow: hidden; }
       .chart-label { position: absolute; z-index: 1; pointer-events: none; font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 1px 2px var(--card-background-color), 0 0 4px var(--card-background-color); }
@@ -819,17 +850,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .average-line { stroke: var(--primary-text-color); stroke-opacity: 0.58; stroke-dasharray: 8 5; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
       .now-line { stroke: var(--primary-text-color); stroke-opacity: 0.72; stroke-dasharray: 3 3; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
       .hover-line { stroke: var(--primary-text-color); stroke-opacity: 0.75; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-      .hover-dot { fill: var(--card-background-color); stroke-width: 3; vector-effect: non-scaling-stroke; }
-      .hover-dot.negative { stroke: var(--negative-color); }
-      .hover-dot.cheap { stroke: var(--cheap); }
-      .hover-dot.normal { stroke: var(--normal); }
-      .hover-dot.expensive { stroke: var(--expensive); }
+      .hover-dot { position: absolute; z-index: 2; width: 12px; height: 12px; box-sizing: border-box; border: 3px solid; border-radius: 50%; transform: translate(-50%, -50%); background: var(--card-background-color); pointer-events: none; }
+      .hover-dot.negative { border-color: var(--negative-color); }
+      .hover-dot.cheap { border-color: var(--cheap); }
+      .hover-dot.normal { border-color: var(--normal); }
+      .hover-dot.expensive { border-color: var(--expensive); }
       .tooltip { position: absolute; z-index: 2; transform: translate(-50%, -108%); min-width: 126px; padding: 9px 11px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2); pointer-events: none; font-variant-numeric: tabular-nums; }
       .tooltip strong, .tooltip span, .tooltip small { display: block; white-space: nowrap; }
       .tooltip strong { font-size: 14px; }
       .tooltip span { margin-top: 2px; font-size: 12px; }
       .tooltip small { margin-top: 3px; color: var(--secondary-text-color); font-size: 10px; }
-      .cheapest-table-wrap { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--divider-color); overflow-x: auto; }
+      .cheapest-table-wrap { flex: 0 1 auto; min-height: 0; max-height: 240px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--divider-color); overflow: auto; }
       .cheapest-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
       .cheapest-table th, .cheapest-table td { padding: 6px 8px; text-align: left; white-space: nowrap; }
       .cheapest-table th { color: var(--secondary-text-color); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -845,7 +876,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         h2 { font-size: 17px; }
         .current strong { font-size: 19px; }
         .legend { gap: 6px 10px; }
-        .chart { height: 260px; }
+        .chart { flex-basis: 260px; min-height: 110px; }
       }
       @media (prefers-reduced-motion: reduce) { .tooltip { transition: none; } }
     `;

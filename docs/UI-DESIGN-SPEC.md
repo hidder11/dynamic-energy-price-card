@@ -13,12 +13,12 @@ Een Home Assistant-card voor bewoners met een dynamisch Tibber-contract. De card
 Rustige data-analyse in de stijl van de Tibber-prijsgrafiek: vloeiende lijn, subtiele oppervlaktevulling, veel horizontale rust en compacte metriek. De card gebruikt Home Assistant-themawaarden en kopieert geen Tibber-assets.
 
 ## Layout and navigation
-Eén zelfstandige Lovelace-card. Bovenaan staan titel, huidige prijs en korte legenda. Daaronder één doorlopende tijdgrafiek met een duidelijke dagscheiding. Geen interne navigatie.
+Eén zelfstandige Lovelace-card. Bovenaan staan optioneel de titel, de huidige prijs en context over de goedkoopste uren. Daaronder staat één doorlopende tijdgrafiek met een duidelijke dagscheiding en optioneel de periodentabel. Geen interne navigatie. In een Home Assistant Sections-view gebruikt de card native `getGridOptions()` zodat de standaard layouteditor de hoogte en breedte kan beheren.
 
 ## Density and spacing
 - Card padding: 16 px desktop, 12 px smal.
 - Interne basisafstand: 4 px; groepen: 8/12/16 px.
-- Grafiekhoogte: 260 px desktop, 220 px mobiel.
+- Grafiekhoogte: standaard circa 300 px en flexibel binnen de door Home Assistant toegewezen cardhoogte; minimaal genoeg voor leesbare labels en interactie.
 - Pointer/touch-interactie gebruikt minimaal 44 px effectieve hit area.
 
 ## Design tokens
@@ -31,7 +31,7 @@ Eén zelfstandige Lovelace-card. Bovenaan staan titel, huidige prijs en korte le
 - Motion: 140 ms tooltip/hover; uit bij reduced motion.
 
 ## Component rules
-De card leest `attributes.data` van `sensor.tibber_prijzen`. Elk punt bevat `start_time` en `price_per_kwh`. Configuratie ondersteunt minimaal `entity`, `threshold`, `cheapest_hours`, `tomorrow_after` en `title`.
+De card leest `attributes.data` van de ingestelde prijsentity. Elk punt bevat `start_time` en `price_per_kwh`. De native editor ondersteunt de prijsniveaus, goedkoopste uren, periodentabel, morgenvenster, hoverlijn, gemiddelde lijn, titel en `show_title`. Wanneer `show_title` uit staat en goedkoopste uren actief zijn, neemt `Goedkoopste x uur/dag` de titelpositie over. Zonder beide blijft de huidige prijs rechts uitgelijnd.
 
 ## Data display and forms
 Prijs wordt primair in ct/kWh getoond, met twee decimalen in tooltip. Tijd wordt Nederlands als `HH:mm–HH:mm` weergegeven. Vandaag en morgen worden als aparte kalenderdagen behandeld.
@@ -47,7 +47,7 @@ Hover, pointer-drag en tik tonen een kruisrichtlijn, marker en tooltip voor het 
 - Verouderde data: waarschuwing wanneer vandaag niet voorkomt.
 
 ## Responsive behavior and supported viewports
-Volledig bruikbaar vanaf 320 px cardbreedte. Op smalle schermen worden secundaire labels ingekort, maar grafiek en tooltip blijven intact. Hover is aanvullend; touch werkt zelfstandig.
+Volledig bruikbaar vanaf 320 px cardbreedte. Op smalle schermen worden secundaire labels ingekort, maar grafiek en tooltip blijven intact. Hover is aanvullend; touch werkt zelfstandig. Voor Sections gebruikt de card standaard 12 kolommen, minimaal 9 kolommen, standaard 6 rijen zonder tabel en 9 rijen met tabel. De minimale hoogte is 4 rijen zonder tabel en 6 rijen met tabel; de maximale hoogte blijft vrij. Bij beperkte hoogte scrolt de tabel intern in plaats van buiten de card te vallen.
 
 ## Accessibility and localization
 Nederlandse labels, toetsenbordfocus op de grafiek en pijltjestoetsen voor vorig/volgend interval. Tooltipinformatie komt in een `aria-live`-regio. Arcering en tekstlabels ondersteunen kleurwaarneming.
@@ -68,7 +68,11 @@ Geen blokkerende ontwerpbeslissingen.
 - De goedkoopste intervallen zijn gearceerd en ook tekstueel herkenbaar in de tooltip.
 - Hover, touch en toetsenbord tonen prijs en tijd.
 - Werkt met licht/donker Home Assistant-thema en vanaf 320 px.
+- Home Assistant toont geen waarschuwing meer dat aangepaste kaartformaten niet volledig worden ondersteund.
+- De card volgt de ingestelde Sections-hoogte zonder dat grafiek of tabel buiten de card valt.
+- De titel kan worden verborgen; actieve goedkoopste-urencontext verschijnt dan op de titelpositie.
 - Nieuwe Lovelace-dashboardweergave is geïnstalleerd en teruggelezen.
 
 ## Change log
+- 2026-10-07: native Sections-sizing en een optioneel verborgen titel vastgelegd.
 - 2026-10-06: initiële specificatie op basis van live Tibber-kwartierdata en gebruikerskeuzes.

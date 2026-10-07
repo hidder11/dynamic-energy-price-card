@@ -12,6 +12,8 @@ The card shows today's prices, optionally adds tomorrow's prices after a configu
 - Interactive price details using hover, touch, or keyboard controls
 - Optional vertical guide line for the active tooltip interval
 - Optional horizontal line showing the average visible price
+- Native card height and width controls in Home Assistant Sections views
+- Optional title; when hidden, the cheapest-hours indicator moves into its place
 - Configurable cheap, normal, and expensive price levels
 - Blue-green coloring for negative prices
 - Optional highlighting of the cheapest moments per day
@@ -62,6 +64,7 @@ You can also add the card manually:
 type: custom:dynamic-energy-price-card
 entity: sensor.tibber_prijzen
 title: Dynamic energy prices
+show_title: true
 show_hover_line: true
 show_average_line: true
 cheap_price: 0.15
@@ -78,6 +81,7 @@ tomorrow_after: 14
 |---|---:|---:|---|
 | `entity` | Yes | — | Sensor containing the price intervals in its `data` attribute. |
 | `title` | No | `Dynamic energy prices` | Title displayed above the graph. |
+| `show_title` | No | `true` | Shows the title. When disabled, the active cheapest-hours indicator uses the title position. |
 | `show_hover_line` | No | `true` | Shows a vertical guide line at the price interval selected by hover, touch, or keyboard. |
 | `show_average_line` | No | `false` | Shows a horizontal line for the average of all price intervals currently visible in the graph. |
 | `cheap_price` | No | `0.15` | Cheap-price level in EUR/kWh. |
@@ -86,6 +90,10 @@ tomorrow_after: 14
 | `cheapest_hours` | No | `0` | Total cheapest duration selected per day. Set to `0` to disable highlighting. |
 | `show_cheapest_table` | No | `false` | Shows a table of the selected cheapest periods. Requires `cheapest_hours` to be enabled. |
 | `tomorrow_after` | No | `14` | Local hour after which tomorrow's available prices are shown. |
+
+## Card size in Sections views
+
+In a Home Assistant **Sections** view, open the card's **Layout** tab to change its height using the standard grid controls. The graph grows or shrinks with the allocated space. When the cheapest-period table is enabled, the card uses a taller default and keeps the table scrollable at smaller supported heights.
 
 The price levels must be ordered as:
 
