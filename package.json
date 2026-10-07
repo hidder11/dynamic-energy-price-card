@@ -1,0 +1,10 @@
+{
+  "name": "dynamic-energy-price-card",
+  "version": "1.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/price-utils.test.mjs && python3 -m unittest discover -s tests -v"
+  }
+}
