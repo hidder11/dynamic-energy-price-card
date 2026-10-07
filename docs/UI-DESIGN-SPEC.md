@@ -79,6 +79,7 @@ Geen blokkerende ontwerpbeslissingen.
 - Standaard blijven grafiek en actuele prijs op alleen afname staan, zodat bestaande configuraties hetzelfde ogen.
 - Grafiekmodus en actuele-prijsmodus zijn onafhankelijk instelbaar op afname, beide of teruglevering; actuele prijzen kunnen ook volledig uit.
 - Terugleverdata komt uit een tweede entity; de optionele offset wordt uitsluitend op die terugleverentity toegepast.
+- De afnamelijn is doorgetrokken. De terugleverlijn gebruikt duidelijk zichtbare onderbrekingen met rechte lijnuiteinden; de legenda toont hetzelfde patroon, zodat de reeksen ook zonder kleur te onderscheiden zijn.
 - De terugleverlijn gebruikt dezelfde grenzen maar omgekeerde kleuren: hoge terugleverprijs groen, lage terugleverprijs rood.
 - Per dag kunnen afzonderlijk de laagste afnameprijzen en hoogste terugleverprijzen worden geselecteerd en in tabellen worden getoond.
 - De native editor bevat herkenbare uitklapbare groepen voor `Afname` en `Teruglevering`.

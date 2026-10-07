@@ -9,6 +9,7 @@ Existing configurations remain import-only by default. Export prices come from a
 - Import, export, or dual-series graph modes on one shared time axis
 - Independent current-price mode: import, export, both, or hidden
 - Solid import line and dashed export line with explicit legend labels
+- Clearly separated export dashes with matching graph and legend patterns
 - Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
 - Real tariff values are preserved; export prices are not sign-inverted
 - Export source from a dedicated sensor; `export_price_offset` adjusts that export series

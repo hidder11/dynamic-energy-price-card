@@ -277,7 +277,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const labels = {
       entity: 'Prijsentity afname',
       export_entity: 'Prijsentity teruglevering',
-      export_price_offset: 'Verschil t.o.v. afname',
+      export_price_offset: 'Correctie op terugleverprijs',
       graph_mode: 'Grafiek',
       current_price_mode: 'Actuele prijzen',
       title: 'Titel',
@@ -929,7 +929,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
       .swatch { width: 15px; height: 4px; border-radius: 4px; background: var(--divider-color); }
       .swatch.import-series { background: var(--primary-color); }
-      .swatch.export-series { height: 0; border-top: 3px dashed var(--primary-color); background: none; border-radius: 0; }
+      .swatch.export-series { height: 3px; border-radius: 0; background: repeating-linear-gradient(90deg, var(--primary-color) 0 7px, transparent 7px 13px); }
       .swatch.selection, .swatch.export-selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--cheap) 45%, transparent); }
       .swatch.export-selection { background: var(--export-best-fill); border-color: color-mix(in srgb, var(--primary-color) 45%, transparent); }
       .chart { position: relative; flex: 1 1 300px; min-height: 120px; outline: none; touch-action: pan-y; }
@@ -948,7 +948,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .area { fill: url(#price-area); stroke: none; }
       .price-line { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
       .import-line { stroke: url(#price-line-gradient); }
-      .export-line { stroke: url(#export-line-gradient); stroke-dasharray: 9 5; }
+      .export-line { stroke: url(#export-line-gradient); stroke-dasharray: 8 7; stroke-linecap: butt; }
       .level-line { stroke-opacity: 0.55; stroke-dasharray: 5 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .cheap-level[data-level-class="import-level"] { stroke: var(--cheap); }
       .normal-level { stroke: var(--normal); }
