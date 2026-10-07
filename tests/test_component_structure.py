@@ -6,6 +6,13 @@ CARD = ROOT / "src" / "dynamic-energy-price-card.js"
 
 
 class CardSourceTests(unittest.TestCase):
+    def test_mobile_hover_interaction_is_dismissible(self):
+        card = CARD.read_text(encoding='utf-8')
+        self.assertIn("line?.removeAttribute('hidden')", card)
+        self.assertIn("dot.removeAttribute('hidden')", card)
+        self.assertIn("window.addEventListener('pointerdown', this._onOutsidePointer)", card)
+        self.assertIn("window.removeEventListener('pointerdown', this._onOutsidePointer)", card)
+
     def test_card_has_no_external_runtime_dependency(self):
         card = CARD.read_text(encoding="utf-8")
         self.assertNotIn("https://", card)

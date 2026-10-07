@@ -194,6 +194,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._onOutsidePointer = (event) => {
+      const chart = this.shadowRoot?.querySelector('.chart');
+      if (chart && !event.composedPath().includes(chart)) this._hideTooltip();
+    };
   }
 
   // static getConfigElement() {
@@ -406,7 +410,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
   }
 
   connectedCallback() {
+    window.addEventListener('pointerdown', this._onOutsidePointer);
     if (this._hass && this._config) this._render();
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener('pointerdown', this._onOutsidePointer);
   }
 
   _render() {
@@ -726,12 +735,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const line = this.shadowRoot.querySelector('.hover-line');
     const dot = this.shadowRoot.querySelector('.hover-dot');
     const tooltip = this.shadowRoot.querySelector('.tooltip');
+    line?.removeAttribute('hidden');
     if (line) {
-      line.hidden = false;
       line.setAttribute('x1', x);
       line.setAttribute('x2', x);
     }
-    dot.hidden = false;
+    dot.removeAttribute('hidden');
     dot.setAttribute('cx', x);
     dot.setAttribute('cy', y);
     dot.setAttribute('class', `hover-dot ${priceClass}`);
