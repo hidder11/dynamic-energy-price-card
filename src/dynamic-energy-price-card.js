@@ -1,5 +1,6 @@
 import {
   addDaysToKey,
+  calculateAveragePrice,
   classifyPrice,
   classifyPriceLevel,
   createPriceTicks,
@@ -71,6 +72,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
   const labels = {
     entity: 'Prijsentity',
     title: 'Titel',
+    show_hover_line: 'Verticale hoverlijn',
+    show_average_line: 'Gemiddelde prijslijn',
     cheap_price: 'Goedkoop',
     normal_price: 'Normaal',
     expensive_price: 'Duur',
@@ -95,6 +98,20 @@ class DynamicEnergyPriceCard extends HTMLElement {
         name: 'title',
         selector: {
           text: {},
+        },
+      },
+
+      {
+        name: 'show_hover_line',
+        selector: {
+          boolean: {},
+        },
+      },
+
+      {
+        name: 'show_average_line',
+        selector: {
+          boolean: {},
         },
       },
 
@@ -181,6 +198,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
 
     computeHelper: (schema) => {
       switch (schema.name) {
+        case 'show_hover_line':
+          return 'Toont een verticale hulplijn bij het actieve prijsinterval.';
+        case 'show_average_line':
+          return 'Toont het gemiddelde van alle zichtbare prijsintervallen.';
         case 'cheap_price':
           return 'Onder deze prijs wordt een uur als goedkoop gemarkeerd.';
         case 'normal_price':
@@ -204,6 +225,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
     return {
       entity: 'sensor.tibber_prijzen',
       title: 'Dynamische energieprijzen',
+      show_hover_line: true,
+      show_average_line: false,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -217,6 +240,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
     if (!config?.entity) throw new Error('Een Tibber-prijsentity is verplicht.');
     this._config = {
       title: 'Dynamische energieprijzen',
+      show_hover_line: true,
+      show_average_line: false,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -337,6 +362,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
       : '';
     const nowLabel = nowVisible
       ? `<span class="chart-label now-label" style="left:${Math.max(6, Math.min(94, (nowX / svgWidth) * 100))}%">Nu</span>`
+      : '';
+    const averagePrice = calculateAveragePrice(points);
+    const averageY = averagePrice === null ? null : yFor(averagePrice);
+    const averageLine = this._config.show_average_line && averageY !== null
+      ? `<line class="average-line" x1="${PLOT.left}" y1="${averageY}" x2="${svgWidth - PLOT.right}" y2="${averageY}" />`
+      : '';
+    const averageLabel = this._config.show_average_line && averageY !== null
+      ? `<span class="chart-label average-label" style="top:${(averageY / svgHeight) * 100}%">Gem. ${formatPrice(averagePrice)} ct</span>`
+      : '';
+    const hoverLine = this._config.show_hover_line
+      ? `<line class="hover-line" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" hidden />`
       : '';
 
     const yTicks = createPriceTicks(minimum, maximum, 5);
@@ -461,15 +497,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
               </defs>
               ${hatchRects}
               ${levelLines}
+              ${averageLine}
               <path d="${areaPath}" class="area" />
               <path d="${path}" class="price-line" />
               ${dayMarkers}
               ${nowMarker}
-              <line class="hover-line" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" hidden />
+              ${hoverLine}
               <circle class="hover-dot" cx="0" cy="0" r="6" hidden />
             </svg>
             ${yLabels}
             ${levelLabels}
+            ${averageLabel}
             ${dayLabels}
             ${nowLabel}
             ${xLabels}
@@ -557,22 +595,24 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const line = this.shadowRoot.querySelector('.hover-line');
     const dot = this.shadowRoot.querySelector('.hover-dot');
     const tooltip = this.shadowRoot.querySelector('.tooltip');
-    line.hidden = false;
+    if (line) {
+      line.hidden = false;
+      line.setAttribute('x1', x);
+      line.setAttribute('x2', x);
+    }
     dot.hidden = false;
-    line.setAttribute('x1', x);
-    line.setAttribute('x2', x);
     dot.setAttribute('cx', x);
     dot.setAttribute('cy', y);
     dot.setAttribute('class', `hover-dot ${priceClass}`);
     tooltip.hidden = false;
     tooltip.innerHTML = `<strong>${formatPrice(point.price)} ct/kWh</strong>
       <span>${formatTime(point.timestamp, this._chart.timeZone)}–${formatTime(nextTime, this._chart.timeZone)}</span>
-      <small>${priceLabel}${selected ? ' · goedkoopste 4 uur' : ''}</small>`;
+      <small>${priceLabel}${selected ? ` · goedkoopste ${this._config.cheapest_hours} uur` : ''}</small>`;
     const percentage = (x / this._chart.svgWidth) * 100;
     tooltip.style.left = `${Math.max(13, Math.min(87, percentage))}%`;
     tooltip.style.top = `${Math.max(8, (y / this._chart.svgHeight) * 100 - 5)}%`;
     const live = this.shadowRoot.querySelector('.sr-only');
-    live.textContent = `${formatTime(point.timestamp, this._chart.timeZone)} tot ${formatTime(nextTime, this._chart.timeZone)}, ${formatPrice(point.price)} cent per kilowattuur${selected ? ', onderdeel van de goedkoopste vier uur' : ''}.`;
+    live.textContent = `${formatTime(point.timestamp, this._chart.timeZone)} tot ${formatTime(nextTime, this._chart.timeZone)}, ${formatPrice(point.price)} cent per kilowattuur${selected ? `, onderdeel van de goedkoopste ${this._config.cheapest_hours} uur` : ''}.`;
   }
 
   _hideTooltip() {
@@ -625,6 +665,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .day-label { top: 8px; color: var(--primary-text-color); font-size: 11px; font-weight: 700; }
       .now-label { top: 8px; transform: translateX(-50%); color: var(--primary-text-color); font-size: 10px; font-weight: 700; }
       .level-label { right: 3px; transform: translateY(-135%); color: var(--secondary-text-color); font-size: 10px; }
+      .average-label { left: 50px; transform: translateY(-135%); color: var(--primary-text-color); font-size: 10px; font-weight: 650; }
       .day-divider { stroke: var(--primary-text-color); stroke-opacity: 0.28; stroke-dasharray: 4 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .area { fill: url(#price-area); stroke: none; }
       .price-line { fill: none; stroke: url(#price-line-gradient); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -635,8 +676,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .cheap-label { color: var(--cheap); }
       .normal-label { color: var(--normal); }
       .expensive-label { color: var(--expensive); }
+      .average-line { stroke: var(--primary-text-color); stroke-opacity: 0.58; stroke-dasharray: 8 5; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
       .now-line { stroke: var(--primary-text-color); stroke-opacity: 0.72; stroke-dasharray: 3 3; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-      .hover-line { stroke: var(--primary-text-color); stroke-opacity: 0.48; stroke-width: 1; vector-effect: non-scaling-stroke; }
+      .hover-line { stroke: var(--primary-text-color); stroke-opacity: 0.75; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
       .hover-dot { fill: var(--card-background-color); stroke-width: 3; vector-effect: non-scaling-stroke; }
       .hover-dot.negative { stroke: var(--negative-color); }
       .hover-dot.cheap { stroke: var(--cheap); }

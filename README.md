@@ -10,6 +10,8 @@ The card shows today's prices, optionally adds tomorrow's prices after a configu
 - Configurable time before tomorrow's prices become visible
 - Current interval price and a vertical **Now** marker
 - Interactive price details using hover, touch, or keyboard controls
+- Optional vertical guide line for the active tooltip interval
+- Optional horizontal line showing the average visible price
 - Configurable cheap, normal, and expensive price levels
 - Blue-green coloring for negative prices
 - Optional highlighting of the cheapest moments per day
@@ -60,6 +62,8 @@ You can also add the card manually:
 type: custom:dynamic-energy-price-card
 entity: sensor.tibber_prijzen
 title: Dynamic energy prices
+show_hover_line: true
+show_average_line: true
 cheap_price: 0.15
 normal_price: 0.25
 expensive_price: 0.40
@@ -74,6 +78,8 @@ tomorrow_after: 14
 |---|---:|---:|---|
 | `entity` | Yes | — | Sensor containing the price intervals in its `data` attribute. |
 | `title` | No | `Dynamic energy prices` | Title displayed above the graph. |
+| `show_hover_line` | No | `true` | Shows a vertical guide line at the price interval selected by hover, touch, or keyboard. |
+| `show_average_line` | No | `false` | Shows a horizontal line for the average of all price intervals currently visible in the graph. |
 | `cheap_price` | No | `0.15` | Cheap-price level in EUR/kWh. |
 | `normal_price` | No | `0.25` | Normal-price anchor used by the line gradient. |
 | `expensive_price` | No | `0.40` | Expensive-price level in EUR/kWh. |

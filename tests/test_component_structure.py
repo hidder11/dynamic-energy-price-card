@@ -37,6 +37,12 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('const cheapestTable =', card)
         self.assertIn('<table class="cheapest-table">', card)
         self.assertIn("name: 'show_cheapest_table'", card)
+        self.assertIn('show_hover_line: true', card)
+        self.assertIn('show_average_line: false', card)
+        self.assertIn("name: 'show_hover_line'", card)
+        self.assertIn("name: 'show_average_line'", card)
+        self.assertIn('class="average-line"', card)
+        self.assertIn('const hoverLine =', card)
 
     def test_card_preserves_native_visual_editor(self):
         card = CARD.read_text(encoding="utf-8")

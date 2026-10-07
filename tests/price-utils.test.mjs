@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  calculateAveragePrice,
   classifyPrice,
   classifyPriceLevel,
   createPriceTicks,
@@ -28,6 +29,11 @@ function quarterDay(day, basePrice = 0.40) {
 test('€0.25 belongs to expensive class while lower values are cheap', () => {
   assert.equal(classifyPrice(0.2499, 0.25), 'cheap');
   assert.equal(classifyPrice(0.25, 0.25), 'expensive');
+});
+
+test('average price is calculated over the visible graph points', () => {
+  assert.ok(Math.abs(calculateAveragePrice([{ price: 0.10 }, { price: 0.20 }, { price: 0.30 }]) - 0.20) < 1e-12);
+  assert.equal(calculateAveragePrice([]), null);
 });
 
 test('price levels include a fixed negative blue-green band', () => {

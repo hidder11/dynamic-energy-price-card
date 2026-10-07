@@ -27,6 +27,11 @@ export function addDaysToKey(dayKey, days) {
   return date.toISOString().slice(0, 10);
 }
 
+export function calculateAveragePrice(points) {
+  if (!points.length) return null;
+  return points.reduce((total, point) => total + Number(point.price), 0) / points.length;
+}
+
 export function classifyPrice(price, threshold = 0.25) {
   return Number(price) < Number(threshold) ? 'cheap' : 'expensive';
 }
