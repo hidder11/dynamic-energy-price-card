@@ -93,6 +93,8 @@ class CardSourceTests(unittest.TestCase):
         ):
             self.assertIn(f"name: '{field}'", card)
         self.assertIn("type: 'expandable'", card)
+        self.assertIn("name: 'import_settings'", card)
+        self.assertIn("name: 'export_settings'", card)
         self.assertIn("title: 'Afname'", card)
         self.assertIn("title: 'Teruglevering'", card)
         self.assertIn("graph_mode: 'import'", card)

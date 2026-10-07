@@ -317,6 +317,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         { name: 'tomorrow_after', required: true, selector: numberSelector('uur') },
         {
           type: 'expandable',
+          name: 'import_settings',
           title: 'Afname',
           flatten: true,
           schema: [
@@ -334,6 +335,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         },
         {
           type: 'expandable',
+          name: 'export_settings',
           title: 'Teruglevering',
           flatten: true,
           schema: [
@@ -347,7 +349,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
           ],
         },
       ],
-      computeLabel: (schema) => labels[schema.name] ?? schema.name,
+      computeLabel: (schema) => {
+        if (!schema?.name) return schema?.title ?? '';
+        return labels[schema.name] ?? schema.name;
+      },
       computeHelper: (schema) => ({
         graph_mode: 'Kies welke tarieven in de gedeelde tijdgrafiek staan.',
         current_price_mode: 'Staat los van de gekozen grafiekweergave.',
