@@ -65,6 +65,7 @@ title: Dynamic energy prices
 show_title: true
 show_hover_line: true
 show_average_line: false
+show_price_levels: true
 cheap_price: 0.15
 normal_price: 0.25
 expensive_price: 0.40
@@ -109,14 +110,15 @@ show_export_table: true
 | Option | Required | Default | Description |
 |---|---:|---:|---|
 | `entity` | Yes | — | Import sensor containing intervals in `attributes.data`. |
-| `export_entity` | No | — | Export sensor with the same data format. Takes precedence over the offset. |
-| `export_price_offset` | No | — | Signed EUR/kWh value used to derive export prices from import prices. |
+| `export_entity` | No | — | Export sensor with the same data format. Required when export information is shown. |
+| `export_price_offset` | No | — | Signed EUR/kWh correction applied to the export entity prices. |
 | `graph_mode` | No | `import` | Graph series: `import`, `both`, or `export`. |
 | `current_price_mode` | No | `import` | Current metrics: `import`, `both`, `export`, or `none`. |
 | `title` | No | `Dynamische energieprijzen` | Card title. |
 | `show_title` | No | `true` | Shows the title. When hidden, active favorable-period context uses its position. |
 | `show_hover_line` | No | `true` | Shows a guide line for the active tooltip interval. |
 | `show_average_line` | No | `false` | Shows a separately labelled average for each visible graph series. |
+| `show_price_levels` | No | `true` | Shows the cheap, normal, and expensive reference lines and their price labels. |
 | `cheap_price` | No | `0.15` | Low threshold in EUR/kWh. Low import is favorable; low export is unfavorable. |
 | `normal_price` | No | `0.25` | Middle gradient anchor in EUR/kWh. |
 | `expensive_price` | No | `0.40` | High threshold in EUR/kWh. High import is unfavorable; high export is favorable. |
@@ -164,7 +166,7 @@ In a Home Assistant **Sections** view, use the card's **Layout** tab to change i
 
 ### Export source required
 
-Configure either `export_entity` or `export_price_offset`, or change export-dependent modes and selections back to import-only settings.
+Configure `export_entity`, or change export-dependent modes and selections back to import-only settings.
 
 ### Tomorrow is missing
 

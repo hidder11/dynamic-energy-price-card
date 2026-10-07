@@ -82,6 +82,7 @@ Geen blokkerende ontwerpbeslissingen.
 - De afnamelijn is doorgetrokken. De terugleverlijn gebruikt duidelijk zichtbare onderbrekingen met rechte lijnuiteinden; de legenda toont hetzelfde patroon, zodat de reeksen ook zonder kleur te onderscheiden zijn.
 - De terugleverlijn gebruikt dezelfde grenzen maar omgekeerde kleuren: hoge terugleverprijs groen, lage terugleverprijs rood.
 - Geselecteerde beste terugleverperioden gebruiken een vaste blauwe accentkleur in zowel lichte als donkere Home Assistant-thema's.
+- Onder de algemene instellingen kan `Prijsgrenzen tonen` de lijnen én prijslabels voor goedkoop, normaal en duur gezamenlijk verbergen. De grenswaarden blijven actief voor de kleurclassificatie.
 - Per dag kunnen afzonderlijk de laagste afnameprijzen en hoogste terugleverprijzen worden geselecteerd en in tabellen worden getoond.
 - De native editor bevat herkenbare uitklapbare groepen voor `Afname` en `Teruglevering`.
 - Nieuwe Lovelace-dashboardweergave is geïnstalleerd en teruggelezen.

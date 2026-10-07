@@ -284,6 +284,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_title: 'Titel tonen',
       show_hover_line: 'Verticale hoverlijn',
       show_average_line: 'Gemiddelde prijslijn',
+      show_price_levels: 'Prijsgrenzen tonen',
       cheap_price: 'Goedkoop',
       normal_price: 'Normaal',
       expensive_price: 'Duur',
@@ -314,6 +315,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         { name: 'show_title', selector: { boolean: {} } },
         { name: 'show_hover_line', selector: { boolean: {} } },
         { name: 'show_average_line', selector: { boolean: {} } },
+        { name: 'show_price_levels', selector: { boolean: {} } },
         { name: 'tomorrow_after', required: true, selector: numberSelector('uur') },
         {
           type: 'expandable',
@@ -359,6 +361,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         show_title: 'Verberg de titel om actieve gunstige-urencontext op die plek te tonen.',
         show_hover_line: 'Toont een verticale hulplijn bij het actieve prijsinterval.',
         show_average_line: 'Toont per zichtbare tariefreeks een gelabeld gemiddelde.',
+        show_price_levels: 'Toont de lijnen en prijslabels voor goedkoop, normaal en duur.',
         cheap_price: 'Onder deze prijs is afname goedkoop; voor teruglevering is laag juist ongunstig.',
         normal_price: 'Middelste prijsgrens voor beide tarieven.',
         expensive_price: 'Boven deze prijs is afname duur en teruglevering gunstig.',
@@ -382,6 +385,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_title: true,
       show_hover_line: true,
       show_average_line: false,
+      show_price_levels: true,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -402,6 +406,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_title: true,
       show_hover_line: true,
       show_average_line: false,
+      show_price_levels: true,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -637,16 +642,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const cheapY = yFor(cheapPrice);
     const normalY = yFor(normalPrice);
     const expensiveY = yFor(expensivePrice);
+    const showPriceLevels = this._config.show_price_levels !== false;
     const bothGraph = graphShowsImport && graphShowsExport;
     const levelClass = bothGraph ? 'neutral-level' : graphShowsExport ? 'export-level' : 'import-level';
-    const levelLines = `
+    const levelLines = showPriceLevels ? `
       <line x1="${PLOT.left}" y1="${cheapY}" x2="${svgWidth - PLOT.right}" y2="${cheapY}" class="level-line cheap-level" data-level-class="${levelClass}" />
       <line x1="${PLOT.left}" y1="${normalY}" x2="${svgWidth - PLOT.right}" y2="${normalY}" class="level-line normal-level" data-level-class="${levelClass}" />
-      <line x1="${PLOT.left}" y1="${expensiveY}" x2="${svgWidth - PLOT.right}" y2="${expensiveY}" class="level-line expensive-level" data-level-class="${levelClass}" />`;
-    const levelLabels = `
+      <line x1="${PLOT.left}" y1="${expensiveY}" x2="${svgWidth - PLOT.right}" y2="${expensiveY}" class="level-line expensive-level" data-level-class="${levelClass}" />` : '';
+    const levelLabels = showPriceLevels ? `
       <span class="chart-label level-label ${levelClass}" style="top:${(cheapY / svgHeight) * 100}%">${formatPrice(cheapPrice)} ct</span>
       <span class="chart-label level-label ${levelClass}" style="top:${(normalY / svgHeight) * 100}%">${formatPrice(normalPrice)} ct</span>
-      <span class="chart-label level-label ${levelClass}" style="top:${(expensiveY / svgHeight) * 100}%">${formatPrice(expensivePrice)} ct</span>`;
+      <span class="chart-label level-label ${levelClass}" style="top:${(expensiveY / svgHeight) * 100}%">${formatPrice(expensivePrice)} ct</span>` : '';
 
     const groups = splitByLocalDay(importPoints);
     const labelHourStep = groups.size > 1 ? 6 : 3;
