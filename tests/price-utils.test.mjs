@@ -9,8 +9,11 @@ import {
   getVisiblePoints,
   groupSelectedPeriods,
   isCheapestHoursEnabled,
+  mergePriceSeries,
   normalizePoints,
+  offsetPriceData,
   selectCheapestDuration,
+  selectHighestDuration,
   splitByLocalDay,
 } from '../src/price-utils.js';
 
@@ -105,4 +108,30 @@ test('cheapest duration is calculated independently per day', () => {
   for (const points of groups.values()) {
     assert.equal(selectCheapestDuration(points, 240).size, 16);
   }
+});
+
+test('return prices can be derived from import prices with a signed offset', () => {
+  const source = quarterDay('2026-10-07', 0.30).slice(0, 2);
+  assert.deepEqual(
+    offsetPriceData(source, -0.12).map((point) => point.price_per_kwh),
+    [0.18, 0.1801],
+  );
+  assert.equal(source[0].price_per_kwh, 0.30);
+});
+
+test('import and return series merge by timestamp while preserving missing values', () => {
+  const importPoints = normalizePoints(quarterDay('2026-10-07', 0.30).slice(0, 3), zone);
+  const exportPoints = normalizePoints(quarterDay('2026-10-07', 0.10).slice(1, 3), zone);
+  const merged = mergePriceSeries(importPoints, exportPoints);
+  assert.equal(merged.length, 3);
+  assert.equal(merged[0].importPrice, importPoints[0].price);
+  assert.equal(merged[0].exportPrice, undefined);
+  assert.equal(merged[1].importPrice, importPoints[1].price);
+  assert.equal(merged[1].exportPrice, exportPoints[0].price);
+});
+
+test('highest return-price intervals are selected independently from cheapest import intervals', () => {
+  const points = normalizePoints(quarterDay('2026-10-07', 0.10), zone);
+  const highest = selectHighestDuration(points, 60);
+  assert.deepEqual([...highest], points.slice(-4).map((point) => point.timestamp));
 });

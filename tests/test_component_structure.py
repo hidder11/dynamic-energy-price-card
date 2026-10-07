@@ -67,13 +67,13 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('Goedkoopst</div>', card)
         self.assertIn('show_cheapest_table: false', card)
         self.assertIn('const cheapestTable =', card)
-        self.assertIn('<table class="cheapest-table">', card)
+        self.assertIn('<table class="cheapest-table', card)
         self.assertIn("name: 'show_cheapest_table'", card)
         self.assertIn('show_hover_line: true', card)
         self.assertIn('show_average_line: false', card)
         self.assertIn("name: 'show_hover_line'", card)
         self.assertIn("name: 'show_average_line'", card)
-        self.assertIn('class="average-line"', card)
+        self.assertIn('class="average-line ', card)
         self.assertIn('const hoverLine =', card)
 
     def test_card_preserves_native_visual_editor(self):
@@ -84,6 +84,23 @@ class CardSourceTests(unittest.TestCase):
         self.assertNotIn('class DynamicEnergyPriceCardEditor', card)
         for field in ('title', 'cheap_price', 'normal_price', 'expensive_price', 'cheapest_hours', 'tomorrow_after'):
             self.assertIn(f"name: '{field}'", card)
+
+    def test_import_and_export_series_are_independently_configurable(self):
+        card = CARD.read_text(encoding="utf-8")
+        for field in (
+            'graph_mode', 'current_price_mode', 'export_entity', 'export_price_offset',
+            'export_best_hours', 'show_export_table',
+        ):
+            self.assertIn(f"name: '{field}'", card)
+        self.assertIn("type: 'expandable'", card)
+        self.assertIn("title: 'Afname'", card)
+        self.assertIn("title: 'Teruglevering'", card)
+        self.assertIn("graph_mode: 'import'", card)
+        self.assertIn("current_price_mode: 'import'", card)
+        self.assertIn("id=\"export-line-gradient\"", card)
+        self.assertIn('class="price-line export-line"', card)
+        self.assertIn('stroke-dasharray: 9 5', card)
+        self.assertIn('selectHighestDuration', card)
 
 
 if __name__ == "__main__":

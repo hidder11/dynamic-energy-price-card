@@ -20,9 +20,9 @@
       color: var(--primary-text-color);
     }
     body { margin: 0; padding: 32px; }
-    main { max-width: 920px; margin: 0 auto; }
+    main { max-width: 920px; height: 760px; margin: 0 auto; }
     ha-card { display: block; background: var(--card-background-color); border-radius: var(--ha-card-border-radius); box-shadow: 0 8px 28px rgba(0,0,0,.25); }
-    @media (max-width: 520px) { body { padding: 8px; } }
+    @media (max-width: 520px) { body { padding: 8px; } main { height: 820px; } }
   </style>
 </head>
 <body>
@@ -30,7 +30,8 @@
   <script type="module">
     import '../dist/dynamic-energy-price-card.js';
 
-    const data = [];
+    const importData = [];
+    const exportData = [];
     for (const day of ['2026-10-07', '2026-10-08']) {
       for (let index = 0; index < 96; index += 1) {
         const hour = Math.floor(index / 4);
@@ -40,24 +41,32 @@
         const middayDip = Math.exp(-Math.pow(hour - 13, 2) / 6) * 0.12;
         const variation = Math.sin(index * 1.7) * 0.013;
         const dayOffset = day.endsWith('08') ? 0.015 : 0;
-        const price = 0.31 + morningPeak + eveningPeak - middayDip + variation + dayOffset;
-        data.push({
-          start_time: `${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+02:00`,
-          price_per_kwh: Number(price.toFixed(4)),
-        });
+        const importPrice = 0.31 + morningPeak + eveningPeak - middayDip + variation + dayOffset;
+        const exportPrice = 0.08 + middayDip * 1.25 - morningPeak * 0.25 - eveningPeak * 0.15 + variation / 2;
+        const start_time = `${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+02:00`;
+        importData.push({ start_time, price_per_kwh: Number(importPrice.toFixed(4)) });
+        // Deliberately omit one export point to exercise the safe missing-value tooltip.
+        if (!(day.endsWith('07') && hour === 11 && minute === 30)) {
+          exportData.push({ start_time, price_per_kwh: Number(exportPrice.toFixed(4)) });
+        }
       }
     }
 
     const card = document.querySelector('#card');
     card.setConfig({
-      entity: 'sensor.tibber_prijzen',
+      entity: 'sensor.dynamic_import_prices',
+      export_entity: 'sensor.dynamic_export_prices',
       title: 'Dynamische energieprijzen',
+      graph_mode: 'both',
+      current_price_mode: 'both',
       show_title: true,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
       cheapest_hours: 4,
+      export_best_hours: 4,
       show_cheapest_table: true,
+      show_export_table: true,
       show_hover_line: true,
       show_average_line: true,
       tomorrow_after: 14,
@@ -66,10 +75,15 @@
       config: { time_zone: 'Europe/Amsterdam' },
       themes: { darkMode: true },
       states: {
-        'sensor.tibber_prijzen': {
+        'sensor.dynamic_import_prices': {
           state: '0.2384',
           last_updated: new Date().toISOString(),
-          attributes: { data },
+          attributes: { data: importData },
+        },
+        'sensor.dynamic_export_prices': {
+          state: '0.1042',
+          last_updated: new Date().toISOString(),
+          attributes: { data: exportData },
         },
       },
     };

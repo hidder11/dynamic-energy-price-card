@@ -1,7 +1,6 @@
 import {
   addDaysToKey,
   calculateAveragePrice,
-  classifyPrice,
   classifyPriceLevel,
   createPriceTicks,
   findCurrentPoint,
@@ -11,7 +10,10 @@ import {
   isCheapestHoursEnabled,
   localDayKey,
   localHour,
+  mergePriceSeries,
+  offsetPriceData,
   selectCheapestDuration,
+  selectHighestDuration,
   splitByLocalDay,
   zonedParts,
 } from './price-utils.js';
@@ -19,6 +21,8 @@ import {
 const SVG_WIDTH = 1000;
 const SVG_HEIGHT = 330;
 const PLOT = { left: 44, right: 12, top: 20, bottom: 34 };
+const IMPORT_MODES = new Set(['import', 'both']);
+const EXPORT_MODES = new Set(['export', 'both']);
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
@@ -59,6 +63,34 @@ const smoothPath = (coordinates) => {
   return path;
 };
 
+const seriesPath = (timeline, key, xFor, yFor, intervalMs) => {
+  const segments = [];
+  let segment = [];
+  let previousTimestamp = null;
+  for (const point of timeline) {
+    const price = point[key];
+    if (!Number.isFinite(price) || (previousTimestamp !== null && point.timestamp - previousTimestamp > intervalMs * 1.5)) {
+      if (segment.length) segments.push(segment);
+      segment = [];
+    }
+    if (Number.isFinite(price)) {
+      segment.push([xFor(point.timestamp), yFor(price)]);
+      previousTimestamp = point.timestamp;
+    } else {
+      previousTimestamp = null;
+    }
+  }
+  if (segment.length) segments.push(segment);
+  return segments.map(smoothPath).join(' ');
+};
+
+const modeOptions = (includeNone = false) => [
+  { value: 'import', label: 'Afname' },
+  { value: 'both', label: 'Afname en teruglevering' },
+  { value: 'export', label: 'Teruglevering' },
+  ...(includeNone ? [{ value: 'none', label: 'Geen' }] : []),
+];
+
 class DynamicEnergyPriceCard extends HTMLElement {
   constructor() {
     super();
@@ -69,175 +101,106 @@ class DynamicEnergyPriceCard extends HTMLElement {
     };
   }
 
-  // static getConfigElement() {
-  //   return document.createElement('dynamic-energy-price-card-editor');
-  // }
   static getConfigForm() {
-  const labels = {
-    entity: 'Prijsentity',
-    title: 'Titel',
-    show_title: 'Titel tonen',
-    show_hover_line: 'Verticale hoverlijn',
-    show_average_line: 'Gemiddelde prijslijn',
-    cheap_price: 'Goedkoop',
-    normal_price: 'Normaal',
-    expensive_price: 'Duur',
-    cheapest_hours: 'Goedkoopste uren per dag',
-    show_cheapest_table: 'Tabel goedkoopste momenten',
-    tomorrow_after: 'Morgenprijzen tonen vanaf',
-  };
+    const labels = {
+      entity: 'Prijsentity afname',
+      export_entity: 'Prijsentity teruglevering',
+      export_price_offset: 'Verschil t.o.v. afname',
+      graph_mode: 'Grafiek',
+      current_price_mode: 'Actuele prijzen',
+      title: 'Titel',
+      show_title: 'Titel tonen',
+      show_hover_line: 'Verticale hoverlijn',
+      show_average_line: 'Gemiddelde prijslijn',
+      cheap_price: 'Goedkoop',
+      normal_price: 'Normaal',
+      expensive_price: 'Duur',
+      cheapest_hours: 'Goedkoopste uren per dag',
+      export_best_hours: 'Beste terugleveruren per dag',
+      show_cheapest_table: 'Tabel goedkoopste momenten',
+      show_export_table: 'Tabel beste teruglevermomenten',
+      tomorrow_after: 'Morgenprijzen tonen vanaf',
+    };
+    const numberSelector = (unit) => ({
+      number: { min: 0, max: 24, step: 1, mode: 'slider', unit_of_measurement: unit },
+    });
+    const thresholdSelector = {
+      number: { min: -1, max: 1, step: 0.01, mode: 'slider', unit_of_measurement: '€/kWh' },
+    };
 
-  return {
-    schema: [
-      {
-        name: 'entity',
-        required: true,
-        selector: {
-          entity: {
-            domain: 'sensor',
-          },
+    return {
+      schema: [
+        {
+          name: 'graph_mode',
+          selector: { select: { mode: 'dropdown', options: modeOptions() } },
         },
-      },
-
-      {
-        name: 'title',
-        selector: {
-          text: {},
+        {
+          name: 'current_price_mode',
+          selector: { select: { mode: 'dropdown', options: modeOptions(true) } },
         },
-      },
-
-      {
-        name: 'show_title',
-        selector: {
-          boolean: {},
+        { name: 'title', selector: { text: {} } },
+        { name: 'show_title', selector: { boolean: {} } },
+        { name: 'show_hover_line', selector: { boolean: {} } },
+        { name: 'show_average_line', selector: { boolean: {} } },
+        { name: 'tomorrow_after', required: true, selector: numberSelector('uur') },
+        {
+          type: 'expandable',
+          title: 'Afname',
+          flatten: true,
+          schema: [
+            {
+              name: 'entity',
+              required: true,
+              selector: { entity: { domain: 'sensor' } },
+            },
+            { name: 'cheapest_hours', selector: numberSelector('uur') },
+            { name: 'show_cheapest_table', selector: { boolean: {} } },
+            { name: 'cheap_price', required: true, selector: thresholdSelector },
+            { name: 'normal_price', required: true, selector: thresholdSelector },
+            { name: 'expensive_price', required: true, selector: thresholdSelector },
+          ],
         },
-      },
-
-      {
-        name: 'show_hover_line',
-        selector: {
-          boolean: {},
+        {
+          type: 'expandable',
+          title: 'Teruglevering',
+          flatten: true,
+          schema: [
+            { name: 'export_entity', selector: { entity: { domain: 'sensor' } } },
+            {
+              name: 'export_price_offset',
+              selector: { number: { min: -1, max: 1, step: 0.001, mode: 'box', unit_of_measurement: '€/kWh' } },
+            },
+            { name: 'export_best_hours', selector: numberSelector('uur') },
+            { name: 'show_export_table', selector: { boolean: {} } },
+          ],
         },
-      },
-
-      {
-        name: 'show_average_line',
-        selector: {
-          boolean: {},
-        },
-      },
-
-      {
-        name: 'cheap_price',
-        required: true,
-        selector: {
-          number: {
-            min: 0,
-            max: 1,
-            step: 0.01,
-            mode: 'slider',
-            unit_of_measurement: '€/kWh',
-          },
-        },
-      },
-
-      {
-        name: 'normal_price',
-        required: true,
-        selector: {
-          number: {
-            min: 0,
-            max: 1,
-            step: 0.01,
-            mode: 'slider',
-            unit_of_measurement: '€/kWh',
-          },
-        },
-      },
-
-      {
-        name: 'expensive_price',
-        required: true,
-        selector: {
-          number: {
-            min: 0,
-            max: 1,
-            step: 0.01,
-            mode: 'slider',
-            unit_of_measurement: '€/kWh',
-          },
-        },
-      },
-
-      {
-        name: 'cheapest_hours',
-        selector: {
-          number: {
-            min: 0,
-            max: 24,
-            step: 1,
-            mode: 'slider',
-            unit_of_measurement: 'uur',
-          },
-        },
-      },
-
-      {
-        name: 'show_cheapest_table',
-        selector: {
-          boolean: {},
-        },
-      },
-
-      {
-        name: 'tomorrow_after',
-        required: true,
-        selector: {
-          number: {
-            min: 0,
-            max: 23,
-            step: 1,
-            mode: 'slider',
-            unit_of_measurement: 'uur',
-          },
-        },
-      },
-    ],
-
-    computeLabel: (schema) => {
-      return labels[schema.name] ?? schema.name;
-    },
-
-    computeHelper: (schema) => {
-      switch (schema.name) {
-        case 'show_title':
-          return 'Verberg de titel om de goedkoopste-urencontext op die plek te tonen.';
-        case 'show_hover_line':
-          return 'Toont een verticale hulplijn bij het actieve prijsinterval.';
-        case 'show_average_line':
-          return 'Toont het gemiddelde van alle zichtbare prijsintervallen.';
-        case 'cheap_price':
-          return 'Onder deze prijs wordt een uur als goedkoop gemarkeerd.';
-        case 'normal_price':
-          return 'Prijsgrens tussen normaal en duur.';
-        case 'expensive_price':
-          return 'Vanaf deze prijs wordt een uur als duur gemarkeerd.';
-        case 'cheapest_hours':
-          return '0 schakelt de markering van goedkoopste uren uit.';
-        case 'show_cheapest_table':
-          return 'Toont aaneengesloten goedkoopste momenten onder de grafiek.';
-        case 'tomorrow_after':
-          return 'Vanaf dit uur worden beschikbare morgenprijzen getoond.';
-        default:
-          return undefined;
-      }
-    },
-  };
-}
+      ],
+      computeLabel: (schema) => labels[schema.name] ?? schema.name,
+      computeHelper: (schema) => ({
+        graph_mode: 'Kies welke tarieven in de gedeelde tijdgrafiek staan.',
+        current_price_mode: 'Staat los van de gekozen grafiekweergave.',
+        show_title: 'Verberg de titel om actieve gunstige-urencontext op die plek te tonen.',
+        show_hover_line: 'Toont een verticale hulplijn bij het actieve prijsinterval.',
+        show_average_line: 'Toont per zichtbare tariefreeks een gelabeld gemiddelde.',
+        cheap_price: 'Onder deze prijs is afname goedkoop; voor teruglevering is laag juist ongunstig.',
+        normal_price: 'Middelste prijsgrens voor beide tarieven.',
+        expensive_price: 'Boven deze prijs is afname duur en teruglevering gunstig.',
+        cheapest_hours: '0 schakelt de selectie van goedkope afname-uren uit.',
+        show_cheapest_table: 'Toont aaneengesloten goedkope afnamemomenten onder de grafiek.',
+        export_entity: 'Heeft voorrang op het ingestelde prijsverschil.',
+        export_price_offset: 'Terugleverprijs = afnameprijs + verschil. Negatieve waarden zijn toegestaan.',
+        export_best_hours: '0 schakelt de selectie van beste terugleveruren uit.',
+        show_export_table: 'Toont aaneengesloten beste teruglevermomenten onder de grafiek.',
+        tomorrow_after: 'Vanaf dit uur worden beschikbare morgenprijzen getoond.',
+      })[schema.name],
+    };
+  }
 
   static getStubConfig() {
     return {
       entity: 'sensor.tibber_prijzen',
+      graph_mode: 'import',
+      current_price_mode: 'import',
       title: 'Dynamische energieprijzen',
       show_title: true,
       show_hover_line: true,
@@ -247,14 +210,18 @@ class DynamicEnergyPriceCard extends HTMLElement {
       expensive_price: 0.40,
       cheapest_hours: 0,
       show_cheapest_table: false,
+      export_best_hours: 0,
+      show_export_table: false,
       tomorrow_after: 14,
     };
   }
 
   setConfig(config) {
-    if (!config?.entity) throw new Error('Een Tibber-prijsentity is verplicht.');
+    if (!config?.entity) throw new Error('Een prijsentity voor afname is verplicht.');
     this._config = {
       title: 'Dynamische energieprijzen',
+      graph_mode: 'import',
+      current_price_mode: 'import',
       show_title: true,
       show_hover_line: true,
       show_average_line: false,
@@ -263,9 +230,13 @@ class DynamicEnergyPriceCard extends HTMLElement {
       expensive_price: 0.40,
       cheapest_hours: 0,
       show_cheapest_table: false,
+      export_best_hours: 0,
+      show_export_table: false,
       tomorrow_after: 14,
       ...config,
     };
+    if (!['import', 'both', 'export'].includes(this._config.graph_mode)) this._config.graph_mode = 'import';
+    if (!['import', 'both', 'export', 'none'].includes(this._config.current_price_mode)) this._config.current_price_mode = 'import';
     const levels = [this._config.cheap_price, this._config.normal_price, this._config.expensive_price].map(Number);
     if (!levels.every(Number.isFinite) || !(levels[0] < levels[1] && levels[1] < levels[2])) {
       throw new Error('Prijsniveaus moeten oplopen: goedkoop < normaal < duur.');
@@ -274,29 +245,54 @@ class DynamicEnergyPriceCard extends HTMLElement {
     this._activeIndex = null;
   }
 
-  getCardSize() {
+  _hasExportSource() {
+    return Boolean(this._config?.export_entity)
+      || (this._config?.export_price_offset !== undefined
+        && this._config?.export_price_offset !== null
+        && this._config?.export_price_offset !== ''
+        && Number.isFinite(Number(this._config.export_price_offset)));
+  }
+
+  _exportRequired() {
+    return EXPORT_MODES.has(this._config?.graph_mode)
+      || EXPORT_MODES.has(this._config?.current_price_mode)
+      || isCheapestHoursEnabled(this._config?.export_best_hours);
+  }
+
+  _hasAnyTable() {
     const hasCheapestTable = isCheapestHoursEnabled(this._config?.cheapest_hours)
       && Boolean(this._config?.show_cheapest_table);
-    return hasCheapestTable ? 9 : 6;
+    const hasExportTable = isCheapestHoursEnabled(this._config?.export_best_hours)
+      && Boolean(this._config?.show_export_table);
+    return hasCheapestTable || hasExportTable;
+  }
+
+  getCardSize() {
+    return this._hasAnyTable() ? 9 : 6;
   }
 
   getGridOptions() {
     const hasCheapestTable = isCheapestHoursEnabled(this._config?.cheapest_hours)
       && Boolean(this._config?.show_cheapest_table);
+    const hasExportTable = isCheapestHoursEnabled(this._config?.export_best_hours)
+      && Boolean(this._config?.show_export_table);
+    const hasAnyTable = hasCheapestTable || hasExportTable;
     return {
       rows: hasCheapestTable ? 9 : 6,
       columns: 12,
       min_rows: hasCheapestTable ? 6 : 4,
       min_columns: 9,
+      ...(hasAnyTable ? { rows: 9, min_rows: 6 } : {}),
     };
   }
 
   set hass(hass) {
     this._hass = hass;
     if (!this._config) return;
-    const state = hass.states[this._config.entity];
+    const importState = hass.states[this._config.entity];
+    const exportState = this._config.export_entity ? hass.states[this._config.export_entity] : null;
     const minute = Math.floor(Date.now() / 60000);
-    const signature = `${state?.last_updated ?? 'missing'}|${minute}|${hass.themes?.darkMode ?? false}`;
+    const signature = `${importState?.last_updated ?? 'missing'}|${exportState?.last_updated ?? 'none'}|${minute}|${hass.themes?.darkMode ?? false}`;
     if (signature !== this._lastSignature) {
       this._lastSignature = signature;
       this._render();
@@ -313,39 +309,72 @@ class DynamicEnergyPriceCard extends HTMLElement {
   }
 
   _render() {
-    const state = this._hass?.states?.[this._config.entity];
-    if (!state) {
+    const importState = this._hass?.states?.[this._config.entity];
+    if (!importState) {
       this.shadowRoot.innerHTML = this._stateCard(
-        'Entiteit niet gevonden',
+        'Afname-entiteit niet gevonden',
         `Controleer ${escapeHtml(this._config.entity)} in de cardconfiguratie.`,
+      );
+      return;
+    }
+    if (this._exportRequired() && !this._hasExportSource()) {
+      this.shadowRoot.innerHTML = this._stateCard(
+        'Terugleverbron ontbreekt',
+        'Stel export_entity of export_price_offset in, of kies alleen afname.',
+      );
+      return;
+    }
+    const exportState = this._config.export_entity ? this._hass?.states?.[this._config.export_entity] : null;
+    if (this._exportRequired() && this._config.export_entity && !exportState) {
+      this.shadowRoot.innerHTML = this._stateCard(
+        'Teruglever-entiteit niet gevonden',
+        `Controleer ${escapeHtml(this._config.export_entity)} in de cardconfiguratie.`,
       );
       return;
     }
 
     const timeZone = this._hass.config.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = new Date();
-    const rawData = state.attributes?.data;
-    const points = getVisiblePoints(rawData, now, timeZone, this._config.tomorrow_after);
-    if (!points.length) {
+    const rawImportData = importState.attributes?.data;
+    const importPoints = getVisiblePoints(rawImportData, now, timeZone, this._config.tomorrow_after);
+    if (!importPoints.length) {
       this.shadowRoot.innerHTML = this._stateCard(
         'Nog geen prijsgegevens',
-        'De Tibber-prijsentity bevat geen kwartierprijzen voor vandaag.',
+        'De afname-entiteit bevat geen prijsintervallen voor vandaag.',
       );
       return;
     }
 
-    const groups = splitByLocalDay(points);
+    let rawExportData = null;
+    if (exportState) rawExportData = exportState.attributes?.data;
+    else if (this._hasExportSource()) rawExportData = offsetPriceData(rawImportData, this._config.export_price_offset);
+    const exportPoints = rawExportData
+      ? getVisiblePoints(rawExportData, now, timeZone, this._config.tomorrow_after)
+      : [];
+    const timeline = mergePriceSeries(importPoints, exportPoints);
+    const graphShowsImport = IMPORT_MODES.has(this._config.graph_mode);
+    const graphShowsExport = EXPORT_MODES.has(this._config.graph_mode);
+    const currentShowsImport = IMPORT_MODES.has(this._config.current_price_mode);
+    const currentShowsExport = EXPORT_MODES.has(this._config.current_price_mode);
+
+    const importGroups = splitByLocalDay(importPoints);
+    const exportGroups = splitByLocalDay(exportPoints);
     const cheapestEnabled = isCheapestHoursEnabled(this._config.cheapest_hours);
-    const selected = new Set();
+    const exportBestEnabled = isCheapestHoursEnabled(this._config.export_best_hours);
+    const importSelected = new Set();
+    const exportSelected = new Set();
     if (cheapestEnabled) {
-      for (const dayPoints of groups.values()) {
-        for (const timestamp of selectCheapestDuration(dayPoints, Number(this._config.cheapest_hours) * 60)) {
-          selected.add(timestamp);
-        }
+      for (const dayPoints of importGroups.values()) {
+        for (const timestamp of selectCheapestDuration(dayPoints, Number(this._config.cheapest_hours) * 60)) importSelected.add(timestamp);
+      }
+    }
+    if (exportBestEnabled) {
+      for (const dayPoints of exportGroups.values()) {
+        for (const timestamp of selectHighestDuration(dayPoints, Number(this._config.export_best_hours) * 60)) exportSelected.add(timestamp);
       }
     }
 
-    const intervalMinutes = inferIntervalMinutes(points);
+    const intervalMinutes = inferIntervalMinutes(importPoints);
     const intervalMs = intervalMinutes * 60000;
     const cheapPrice = Number(this._config.cheap_price);
     const normalPrice = Number(this._config.normal_price);
@@ -354,38 +383,47 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const svgHeight = SVG_HEIGHT;
     const plotWidth = svgWidth - PLOT.left - PLOT.right;
     const plotHeight = svgHeight - PLOT.top - PLOT.bottom;
-    const start = points[0].timestamp;
-    const end = points.at(-1).timestamp + intervalMs;
+    const start = timeline[0].timestamp;
+    const end = timeline.at(-1).timestamp + intervalMs;
     const span = Math.max(intervalMs, end - start);
-    const rawMin = Math.min(cheapPrice, ...points.map((point) => point.price));
-    const rawMax = Math.max(expensivePrice, ...points.map((point) => point.price));
+    const visiblePrices = timeline.flatMap((point) => [
+      ...(graphShowsImport && Number.isFinite(point.importPrice) ? [point.importPrice] : []),
+      ...(graphShowsExport && Number.isFinite(point.exportPrice) ? [point.exportPrice] : []),
+    ]);
+    const rawMin = Math.min(cheapPrice, ...visiblePrices);
+    const rawMax = Math.max(expensivePrice, ...visiblePrices);
     const range = Math.max(0.04, rawMax - rawMin);
     const minimum = Math.max(-1, rawMin - range * 0.12);
     const maximum = rawMax + range * 0.12;
     const yRange = maximum - minimum;
     const xFor = (timestamp) => PLOT.left + ((timestamp - start) / span) * plotWidth;
     const yFor = (price) => PLOT.top + ((maximum - price) / yRange) * plotHeight;
-    const coordinates = points.map((point) => [xFor(point.timestamp), yFor(point.price)]);
-    const path = smoothPath(coordinates);
-    const areaPath = `${path} L ${xFor(points.at(-1).timestamp)} ${PLOT.top + plotHeight} L ${xFor(start)} ${PLOT.top + plotHeight} Z`;
+    const importPath = graphShowsImport ? seriesPath(timeline, 'importPrice', xFor, yFor, intervalMs) : '';
+    const exportPath = graphShowsExport ? seriesPath(timeline, 'exportPrice', xFor, yFor, intervalMs) : '';
+    const importAreaPath = graphShowsImport && importPath && timeline.every((point) => Number.isFinite(point.importPrice))
+      ? `${importPath} L ${xFor(timeline.at(-1).timestamp)} ${PLOT.top + plotHeight} L ${xFor(start)} ${PLOT.top + plotHeight} Z`
+      : '';
 
-    const hatchRects = points
-      .filter((point) => selected.has(point.timestamp))
-      .map((point) => {
-        const x = xFor(point.timestamp);
-        const width = Math.max(1.5, xFor(point.timestamp + intervalMs) - x);
-        return `<rect x="${x.toFixed(2)}" y="${PLOT.top}" width="${width.toFixed(2)}" height="${plotHeight}" fill="var(--cheapest-fill)" class="cheapest-slot" />`;
-      })
-      .join('');
+    const selectionRects = timeline.map((point) => {
+      const x = xFor(point.timestamp);
+      const width = Math.max(1.5, xFor(point.timestamp + intervalMs) - x);
+      const rects = [];
+      if (graphShowsImport && importSelected.has(point.timestamp)) {
+        rects.push(`<rect x="${x.toFixed(2)}" y="${PLOT.top}" width="${width.toFixed(2)}" height="${plotHeight}" fill="var(--cheapest-fill)" class="cheapest-slot" />`);
+      }
+      if (graphShowsExport && exportSelected.has(point.timestamp)) {
+        rects.push(`<rect x="${x.toFixed(2)}" y="${PLOT.top}" width="${width.toFixed(2)}" height="${plotHeight}" fill="var(--export-best-fill)" class="export-best-slot" />`);
+      }
+      return rects.join('');
+    }).join('');
 
     const offsetForPrice = (price) => Math.max(0, Math.min(100, ((yFor(price) - PLOT.top) / plotHeight) * 100));
     const expensiveOffset = offsetForPrice(expensivePrice);
     const normalOffset = offsetForPrice(normalPrice);
     const cheapOffset = offsetForPrice(cheapPrice);
     const zeroOffset = offsetForPrice(0);
-    const negativeGradientStops = minimum < 0
-      ? `<stop offset="${zeroOffset}%" stop-color="var(--zero-color)" />
-         <stop offset="100%" stop-color="var(--negative-color)" />`
+    const importNegativeStops = minimum < 0
+      ? `<stop offset="${zeroOffset}%" stop-color="var(--zero-color)" /><stop offset="100%" stop-color="var(--negative-color)" />`
       : `<stop offset="100%" stop-color="var(--cheap)" />`;
 
     const nowTimestamp = now.getTime();
@@ -397,14 +435,18 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const nowLabel = nowVisible
       ? `<span class="chart-label now-label" style="left:${Math.max(6, Math.min(94, (nowX / svgWidth) * 100))}%">Nu</span>`
       : '';
-    const averagePrice = calculateAveragePrice(points);
-    const averageY = averagePrice === null ? null : yFor(averagePrice);
-    const averageLine = this._config.show_average_line && averageY !== null
-      ? `<line class="average-line" x1="${PLOT.left}" y1="${averageY}" x2="${svgWidth - PLOT.right}" y2="${averageY}" />`
-      : '';
-    const averageLabel = this._config.show_average_line && averageY !== null
-      ? `<span class="chart-label average-label" style="top:${(averageY / svgHeight) * 100}%">Gem. ${formatPrice(averagePrice)} ct</span>`
-      : '';
+
+    const averages = [];
+    if (this._config.show_average_line && graphShowsImport) {
+      const value = calculateAveragePrice(importPoints);
+      if (value !== null) averages.push({ key: 'import', label: 'Gem. afname', value, y: yFor(value) });
+    }
+    if (this._config.show_average_line && graphShowsExport) {
+      const value = calculateAveragePrice(exportPoints);
+      if (value !== null) averages.push({ key: 'export', label: 'Gem. teruglevering', value, y: yFor(value) });
+    }
+    const averageLine = averages.map((average) => `<line class="average-line ${average.key}-average" x1="${PLOT.left}" y1="${average.y}" x2="${svgWidth - PLOT.right}" y2="${average.y}" />`).join('');
+    const averageLabel = averages.map((average, index) => `<span class="chart-label average-label ${average.key}-average-label" style="top:${(average.y / svgHeight) * 100}%;left:${50 + index * 132}px">${average.label} ${formatPrice(average.value)} ct</span>`).join('');
     const hoverLine = this._config.show_hover_line
       ? `<line class="hover-line" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" hidden />`
       : '';
@@ -414,30 +456,31 @@ class DynamicEnergyPriceCard extends HTMLElement {
       const y = yFor(price);
       return `<span class="chart-label y-label" style="top:${(y / svgHeight) * 100}%">${formatPrice(price, 0)}</span>`;
     }).join('');
-
     const cheapY = yFor(cheapPrice);
     const normalY = yFor(normalPrice);
     const expensiveY = yFor(expensivePrice);
+    const bothGraph = graphShowsImport && graphShowsExport;
+    const levelClass = bothGraph ? 'neutral-level' : graphShowsExport ? 'export-level' : 'import-level';
     const levelLines = `
-      <line x1="${PLOT.left}" y1="${cheapY}" x2="${svgWidth - PLOT.right}" y2="${cheapY}" class="level-line cheap-level" />
-      <line x1="${PLOT.left}" y1="${normalY}" x2="${svgWidth - PLOT.right}" y2="${normalY}" class="level-line normal-level" />
-      <line x1="${PLOT.left}" y1="${expensiveY}" x2="${svgWidth - PLOT.right}" y2="${expensiveY}" class="level-line expensive-level" />`;
+      <line x1="${PLOT.left}" y1="${cheapY}" x2="${svgWidth - PLOT.right}" y2="${cheapY}" class="level-line cheap-level" data-level-class="${levelClass}" />
+      <line x1="${PLOT.left}" y1="${normalY}" x2="${svgWidth - PLOT.right}" y2="${normalY}" class="level-line normal-level" data-level-class="${levelClass}" />
+      <line x1="${PLOT.left}" y1="${expensiveY}" x2="${svgWidth - PLOT.right}" y2="${expensiveY}" class="level-line expensive-level" data-level-class="${levelClass}" />`;
     const levelLabels = `
-      <span class="chart-label level-label cheap-label" style="top:${(cheapY / svgHeight) * 100}%">${formatPrice(cheapPrice)} ct</span>
-      <span class="chart-label level-label normal-label" style="top:${(normalY / svgHeight) * 100}%">${formatPrice(normalPrice)} ct</span>
-      <span class="chart-label level-label expensive-label" style="top:${(expensiveY / svgHeight) * 100}%">${formatPrice(expensivePrice)} ct</span>`;
+      <span class="chart-label level-label ${levelClass}" style="top:${(cheapY / svgHeight) * 100}%">${formatPrice(cheapPrice)} ct</span>
+      <span class="chart-label level-label ${levelClass}" style="top:${(normalY / svgHeight) * 100}%">${formatPrice(normalPrice)} ct</span>
+      <span class="chart-label level-label ${levelClass}" style="top:${(expensiveY / svgHeight) * 100}%">${formatPrice(expensivePrice)} ct</span>`;
 
+    const groups = splitByLocalDay(importPoints);
     const labelHourStep = groups.size > 1 ? 6 : 3;
-    const xLabels = points.filter((point) => {
+    const xLabels = importPoints.filter((point) => {
       const parts = zonedParts(point.timestamp, timeZone);
       return Number(parts.minute) === 0 && Number(parts.hour) % labelHourStep === 0;
     }).map((point) => `<span class="chart-label x-label" style="left:${(xFor(point.timestamp) / svgWidth) * 100}%">${formatTime(point.timestamp, timeZone)}</span>`).join('');
-
-    const dayMarkers = [...groups.entries()].map(([dayKey, dayPoints], index) => {
+    const dayMarkers = [...groups.values()].map((dayPoints, index) => {
       const x = xFor(dayPoints[0].timestamp);
       return index === 0 ? '' : `<line x1="${x}" y1="${PLOT.top}" x2="${x}" y2="${PLOT.top + plotHeight}" class="day-divider" />`;
     }).join('');
-    const dayLabels = [...groups.entries()].map(([dayKey, dayPoints], index) => {
+    const dayLabels = [...groups.values()].map((dayPoints, index) => {
       const x = Math.max(PLOT.left + 8, xFor(dayPoints[0].timestamp) + 10);
       return `<span class="chart-label day-label" style="left:${(x / svgWidth) * 100}%">${index === 0 ? 'Vandaag' : 'Morgen'} · ${formatDay(dayPoints[0].timestamp, timeZone)}</span>`;
     }).join('');
@@ -448,121 +491,129 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const showTomorrow = localHour(now, timeZone) >= Number(this._config.tomorrow_after);
     const tomorrowMinutes = tomorrowPoints.length * intervalMinutes;
     let availability = `Morgen vanaf ${String(this._config.tomorrow_after).padStart(2, '0')}:00`;
-    if (showTomorrow && tomorrowPoints.length) {
-      availability = tomorrowMinutes >= 24 * 60 ? 'Morgen compleet' : 'Morgen deels bekend';
-    } else if (showTomorrow) {
-      availability = 'Morgen nog niet bekend';
-    }
+    if (showTomorrow && tomorrowPoints.length) availability = tomorrowMinutes >= 24 * 60 ? 'Morgen compleet' : 'Morgen deels bekend';
+    else if (showTomorrow) availability = 'Morgen nog niet bekend';
 
-    const currentPoint = findCurrentPoint(points, now);
-    const currentPrice = currentPoint?.price ?? null;
-    const currentClass = currentPrice === null
-      ? 'unavailable'
-      : classifyPriceLevel(currentPrice, cheapPrice, normalPrice, expensivePrice);
-    const currentPriceText = currentPrice === null ? '—' : formatPrice(currentPrice);
-    const currentIsSelected = cheapestEnabled && currentPoint ? selected.has(currentPoint.timestamp) : false;
-    const currentBadge = currentIsSelected
-      ? '<div class="current-window active">Goedkoopst</div>'
-      : '';
+    const currentImport = findCurrentPoint(importPoints, now);
+    const currentExport = findCurrentPoint(exportPoints, now);
+    const currentCards = [];
+    if (currentShowsImport) currentCards.push(this._currentMetric('Afname', currentImport, 'import', importSelected, cheapestEnabled));
+    if (currentShowsExport) currentCards.push(this._currentMetric('Teruglevering', currentExport, 'export', exportSelected, exportBestEnabled));
+    const currentBlock = currentCards.length ? `<div class="current-block">${currentCards.join('')}</div>` : '';
+
     const showTitle = this._config.show_title !== false;
-    const cheapestLabel = `Goedkoopste ${escapeHtml(this._config.cheapest_hours)} uur/dag`;
-    const heading = showTitle ? `<div class="heading"><h2>${escapeHtml(this._config.title)}</h2></div>`
-      : cheapestEnabled
-        ? `<div class="heading"><div class="header-cheapest"><i class="swatch selection"></i>${cheapestLabel}</div></div>`
+    const contextLabels = [];
+    if (cheapestEnabled) contextLabels.push(`<span><i class="swatch selection"></i>Goedkoopste ${escapeHtml(this._config.cheapest_hours)} uur/dag</span>`);
+    if (exportBestEnabled) contextLabels.push(`<span><i class="swatch export-selection"></i>Beste teruglevering ${escapeHtml(this._config.export_best_hours)} uur/dag</span>`);
+    const heading = showTitle
+      ? `<div class="heading"><h2>${escapeHtml(this._config.title)}</h2></div>`
+      : contextLabels.length
+        ? `<div class="heading"><div class="header-cheapest">${contextLabels.join('')}</div></div>`
         : '';
-    const legend = cheapestEnabled && showTitle
-      ? `<div class="legend" aria-label="Legenda">
-          <span><i class="swatch selection"></i>${cheapestLabel}</span>
-        </div>`
+    const seriesLegend = [];
+    if (graphShowsImport) seriesLegend.push('<span><i class="swatch import-series"></i>Afname</span>');
+    if (graphShowsExport) seriesLegend.push('<span><i class="swatch export-series"></i>Teruglevering</span>');
+    const legendItems = [...seriesLegend, ...(showTitle ? contextLabels : [])];
+    const legend = cheapestEnabled || exportBestEnabled || legendItems.length > 1
+      ? `<div class="legend" aria-label="Legenda">${legendItems.join('')}</div>`
       : '';
-    const cheapestPeriods = groupSelectedPeriods(points, selected, intervalMinutes);
-    const cheapestRows = cheapestPeriods.map((period) => {
-      const hours = Math.floor(period.durationMinutes / 60);
-      const minutes = period.durationMinutes % 60;
-      const duration = hours && minutes
-        ? `${hours} u ${minutes} min`
-        : hours
-          ? `${hours} uur`
-          : `${minutes} min`;
-      const day = period.dayKey === todayKey ? 'Vandaag' : period.dayKey === tomorrowKey ? 'Morgen' : period.dayKey;
-      return `<tr>
-        <td>${day}</td>
-        <td>${formatTime(period.startTimestamp, timeZone)}</td>
-        <td>${formatTime(period.endTimestamp, timeZone)}</td>
-        <td>${duration}</td>
-      </tr>`;
-    }).join('');
+
     const cheapestTable = cheapestEnabled && this._config.show_cheapest_table
-      ? `<div class="cheapest-table-wrap">
-          <table class="cheapest-table">
-            <thead><tr><th>Dag</th><th>Start</th><th>Einde</th><th>Duur</th></tr></thead>
-            <tbody>${cheapestRows}</tbody>
-          </table>
-        </div>`
+      ? this._periodTable('Goedkoopste afname', importPoints, importSelected, intervalMinutes, timeZone, todayKey, tomorrowKey, 'cheapest-table')
       : '';
+    const exportTable = exportBestEnabled && this._config.show_export_table
+      ? this._periodTable('Beste teruglevering', exportPoints, exportSelected, inferIntervalMinutes(exportPoints), timeZone, todayKey, tomorrowKey, 'export-table')
+      : '';
+
     this._chart = {
-      points, selected, intervalMs, timeZone, xFor, yFor, start, span,
-      cheapPrice, normalPrice, expensivePrice, svgWidth, svgHeight,
+      timeline, importSelected, exportSelected, intervalMs, timeZone, xFor, yFor, start, span,
+      cheapPrice, normalPrice, expensivePrice, svgWidth, svgHeight, graphShowsImport, graphShowsExport,
     };
 
     this.shadowRoot.innerHTML = `
       <ha-card>
         <div class="card-content">
-          <header class="header">
-            ${heading}
-            <div class="current-block">
-              <div class="current ${currentClass}" aria-label="Huidige prijs ${currentPrice === null ? 'onbekend' : `${currentPriceText} cent per kilowattuur`}">
-                <strong>${currentPriceText}</strong><span>ct/kWh</span>
-              </div>
-              ${currentBadge}
-            </div>
-          </header>
+          <header class="header">${heading}${currentBlock}</header>
           ${legend}
-          <div class="chart" tabindex="0" role="img" aria-label="Elektriciteitsprijzen per kwartier. Gebruik de pijltjestoetsen om prijzen te bekijken.">
+          <div class="chart" tabindex="0" role="img" aria-label="Elektriciteitsprijzen per interval. Gebruik de pijltjestoetsen om prijzen te bekijken.">
             <svg viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <linearGradient id="price-area" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.16" />
+                  <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.14" />
                   <stop offset="100%" stop-color="var(--primary-color)" stop-opacity="0.01" />
                 </linearGradient>
                 <linearGradient id="price-line-gradient" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="var(--expensive)" />
-                  <stop offset="${expensiveOffset}%" stop-color="var(--expensive)" />
-                  <stop offset="${normalOffset}%" stop-color="var(--normal)" />
-                  <stop offset="${cheapOffset}%" stop-color="var(--cheap)" />
-                  ${negativeGradientStops}
+                  <stop offset="0%" stop-color="var(--expensive)" /><stop offset="${expensiveOffset}%" stop-color="var(--expensive)" />
+                  <stop offset="${normalOffset}%" stop-color="var(--normal)" /><stop offset="${cheapOffset}%" stop-color="var(--cheap)" />${importNegativeStops}
+                </linearGradient>
+                <linearGradient id="export-line-gradient" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="var(--cheap)" /><stop offset="${expensiveOffset}%" stop-color="var(--cheap)" />
+                  <stop offset="${normalOffset}%" stop-color="var(--normal)" /><stop offset="${cheapOffset}%" stop-color="var(--expensive)" />
+                  <stop offset="100%" stop-color="var(--expensive)" />
                 </linearGradient>
               </defs>
-              ${hatchRects}
-              ${levelLines}
-              ${averageLine}
-              <path d="${areaPath}" class="area" />
-              <path d="${path}" class="price-line" />
-              ${dayMarkers}
-              ${nowMarker}
-              ${hoverLine}
+              ${selectionRects}${levelLines}${averageLine}
+              ${importAreaPath ? `<path d="${importAreaPath}" class="area" />` : ''}
+              ${importPath ? `<path d="${importPath}" class="price-line import-line" />` : ''}
+              ${exportPath ? `<path d="${exportPath}" class="price-line export-line" />` : ''}
+              ${dayMarkers}${nowMarker}${hoverLine}
             </svg>
-            <span class="hover-dot" hidden></span>
-            ${yLabels}
-            ${levelLabels}
-            ${averageLabel}
-            ${dayLabels}
-            ${nowLabel}
-            ${xLabels}
+            <span class="hover-dot" data-series="import" hidden></span>
+            <span class="hover-dot export-dot" data-series="export" hidden></span>
+            ${yLabels}${levelLabels}${averageLabel}${dayLabels}${nowLabel}${xLabels}
             <div class="tooltip" hidden></div>
           </div>
-          ${cheapestTable}
+          ${cheapestTable}${exportTable}
           <div class="sr-only" aria-live="polite"></div>
         </div>
       </ha-card>
       <style>${this._styles()}</style>`;
-
     this._bindInteractions();
   }
 
+  _currentMetric(label, point, type, selected, enabled) {
+    const price = point?.price ?? null;
+    const priceClass = price === null
+      ? 'unavailable'
+      : this._priceClass(price, type);
+    const priceText = price === null ? '—' : formatPrice(price);
+    const favorable = enabled && point ? selected.has(point.timestamp) : false;
+    const badge = favorable
+      ? type === 'import'
+        ? '<div class="current-window active">Goedkoopst</div>'
+        : '<div class="current-window active">Beste opbrengst</div>'
+      : '';
+    return `<div class="current-metric ${type}">
+      <span class="current-label">${label}</span>
+      <div class="current ${priceClass}" aria-label="Huidige ${label.toLowerCase()}prijs ${price === null ? 'onbekend' : `${priceText} cent per kilowattuur`}">
+        <strong>${priceText}</strong><span>ct/kWh</span>
+      </div>${badge}
+    </div>`;
+  }
+
+  _periodTable(title, points, selected, intervalMinutes, timeZone, todayKey, tomorrowKey, className) {
+    const rows = groupSelectedPeriods(points, selected, intervalMinutes).map((period) => {
+      const hours = Math.floor(period.durationMinutes / 60);
+      const minutes = period.durationMinutes % 60;
+      const duration = hours && minutes ? `${hours} u ${minutes} min` : hours ? `${hours} uur` : `${minutes} min`;
+      const day = period.dayKey === todayKey ? 'Vandaag' : period.dayKey === tomorrowKey ? 'Morgen' : period.dayKey;
+      return `<tr><td>${day}</td><td>${formatTime(period.startTimestamp, timeZone)}</td><td>${formatTime(period.endTimestamp, timeZone)}</td><td>${duration}</td></tr>`;
+    }).join('');
+    return `<section class="price-table-wrap ${className}-wrap"><h3>${title}</h3>
+      <table class="cheapest-table ${className}"><thead><tr><th>Dag</th><th>Start</th><th>Einde</th><th>Duur</th></tr></thead><tbody>${rows}</tbody></table>
+    </section>`;
+  }
+
+  _priceClass(price, type) {
+    const base = classifyPriceLevel(price, this._config.cheap_price, this._config.normal_price, this._config.expensive_price);
+    if (type !== 'export') return base;
+    if (base === 'expensive') return 'cheap';
+    if (base === 'cheap' || base === 'negative') return 'expensive';
+    return 'normal';
+  }
+
   _stateCard(title, message) {
-    return `<ha-card><div class="state"><strong>${title}</strong><span>${message}</span></div></ha-card>
-      <style>${this._styles()}</style>`;
+    return `<ha-card><div class="state"><strong>${title}</strong><span>${message}</span></div></ha-card><style>${this._styles()}</style>`;
   }
 
   _bindInteractions() {
@@ -574,8 +625,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
       if (event.pointerType === 'mouse') this._hideTooltip();
     });
     chart.addEventListener('focus', () => {
-      const nearest = this._chart.points.reduce((best, point, index) => (
-        Math.abs(point.timestamp - Date.now()) < Math.abs(this._chart.points[best].timestamp - Date.now()) ? index : best
+      const nearest = this._chart.timeline.reduce((best, point, index) => (
+        Math.abs(point.timestamp - Date.now()) < Math.abs(this._chart.timeline[best].timestamp - Date.now()) ? index : best
       ), 0);
       this._showPoint(nearest);
     });
@@ -584,10 +635,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
       event.preventDefault();
       if (event.key === 'Escape') return this._hideTooltip();
       if (event.key === 'Home') this._activeIndex = 0;
-      else if (event.key === 'End') this._activeIndex = this._chart.points.length - 1;
+      else if (event.key === 'End') this._activeIndex = this._chart.timeline.length - 1;
       else {
         const delta = event.key === 'ArrowLeft' ? -1 : 1;
-        this._activeIndex = Math.max(0, Math.min(this._chart.points.length - 1, (this._activeIndex ?? 0) + delta));
+        this._activeIndex = Math.max(0, Math.min(this._chart.timeline.length - 1, (this._activeIndex ?? 0) + delta));
       }
       this._showPoint(this._activeIndex);
     });
@@ -599,64 +650,68 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const svgX = ((event.clientX - bounds.left) / bounds.width) * this._chart.svgWidth;
     const timestamp = this._chart.start + Math.max(0, Math.min(1, (svgX - PLOT.left) / (this._chart.svgWidth - PLOT.left - PLOT.right))) * this._chart.span;
     let low = 0;
-    let high = this._chart.points.length - 1;
+    let high = this._chart.timeline.length - 1;
     while (low < high) {
       const middle = Math.floor((low + high) / 2);
-      if (this._chart.points[middle].timestamp < timestamp) low = middle + 1;
+      if (this._chart.timeline[middle].timestamp < timestamp) low = middle + 1;
       else high = middle;
     }
     const previous = Math.max(0, low - 1);
-    const index = Math.abs(this._chart.points[low].timestamp - timestamp) < Math.abs(this._chart.points[previous].timestamp - timestamp) ? low : previous;
+    const index = Math.abs(this._chart.timeline[low].timestamp - timestamp) < Math.abs(this._chart.timeline[previous].timestamp - timestamp) ? low : previous;
     this._showPoint(index);
   }
 
   _showPoint(index) {
-    const point = this._chart.points[index];
+    const point = this._chart.timeline[index];
     if (!point) return;
     this._activeIndex = index;
     const nextTime = point.timestamp + this._chart.intervalMs;
     const x = this._chart.xFor(point.timestamp);
-    const y = this._chart.yFor(point.price);
-    const selected = this._chart.selected.has(point.timestamp);
-    const priceClass = classifyPriceLevel(
-      point.price,
-      this._chart.cheapPrice,
-      this._chart.normalPrice,
-      this._chart.expensivePrice,
-    );
-    const priceLabel = {
-      negative: 'Negatieve prijs',
-      cheap: 'Goedkoop',
-      normal: 'Normaal',
-      expensive: 'Duur',
-    }[priceClass];
     const line = this.shadowRoot.querySelector('.hover-line');
-    const dot = this.shadowRoot.querySelector('.hover-dot');
-    const tooltip = this.shadowRoot.querySelector('.tooltip');
     line?.removeAttribute('hidden');
     if (line) {
       line.setAttribute('x1', x);
       line.setAttribute('x2', x);
     }
-    dot.removeAttribute('hidden');
-    dot.style.left = `${(x / this._chart.svgWidth) * 100}%`;
-    dot.style.top = `${(y / this._chart.svgHeight) * 100}%`;
-    dot.setAttribute('class', `hover-dot ${priceClass}`);
+
+    const entries = [];
+    const liveEntries = [];
+    const showDot = (type, price, selected, hours, favorableLabel) => {
+      const dot = this.shadowRoot.querySelector(`[data-series="${type}"]`);
+      if (!Number.isFinite(price)) {
+        dot?.setAttribute('hidden', '');
+        entries.push(`<span><b>${type === 'import' ? 'Afname' : 'Teruglevering'}</b> —</span>`);
+        liveEntries.push(`${type === 'import' ? 'afname' : 'teruglevering'} niet beschikbaar`);
+        return;
+      }
+      const y = this._chart.yFor(price);
+      const priceClass = this._priceClass(price, type);
+      dot.removeAttribute('hidden');
+      dot.style.left = `${(x / this._chart.svgWidth) * 100}%`;
+      dot.style.top = `${(y / this._chart.svgHeight) * 100}%`;
+      dot.setAttribute('class', `hover-dot${type === 'export' ? ' export-dot' : ''} ${priceClass}`);
+      const favorable = selected.has(point.timestamp);
+      entries.push(`<span><i class="tooltip-series ${type}"></i><b>${type === 'import' ? 'Afname' : 'Teruglevering'}</b> ${formatPrice(price)} ct/kWh</span>${favorable ? `<small>${favorableLabel} ${escapeHtml(hours)} uur</small>` : ''}`);
+      liveEntries.push(`${type === 'import' ? 'afname' : 'teruglevering'} ${formatPrice(price)} cent per kilowattuur${favorable ? `, ${favorableLabel} ${hours} uur` : ''}`);
+    };
+    if (this._chart.graphShowsImport) showDot('import', point.importPrice, this._chart.importSelected, this._config.cheapest_hours, 'goedkoopste');
+    if (this._chart.graphShowsExport) showDot('export', point.exportPrice, this._chart.exportSelected, this._config.export_best_hours, 'beste');
+
+    const tooltip = this.shadowRoot.querySelector('.tooltip');
     tooltip.hidden = false;
-    tooltip.innerHTML = `<strong>${formatPrice(point.price)} ct/kWh</strong>
-      <span>${formatTime(point.timestamp, this._chart.timeZone)}–${formatTime(nextTime, this._chart.timeZone)}</span>
-      <small>${priceLabel}${selected ? ` · goedkoopste ${this._config.cheapest_hours} uur` : ''}</small>`;
+    tooltip.innerHTML = `<strong>${formatTime(point.timestamp, this._chart.timeZone)}–${formatTime(nextTime, this._chart.timeZone)}</strong>${entries.join('')}`;
     const percentage = (x / this._chart.svgWidth) * 100;
-    tooltip.style.left = `${Math.max(13, Math.min(87, percentage))}%`;
-    tooltip.style.top = `${Math.max(8, (y / this._chart.svgHeight) * 100 - 5)}%`;
+    tooltip.style.left = `${Math.max(15, Math.min(85, percentage))}%`;
+    tooltip.style.top = '48%';
     const live = this.shadowRoot.querySelector('.sr-only');
-    live.textContent = `${formatTime(point.timestamp, this._chart.timeZone)} tot ${formatTime(nextTime, this._chart.timeZone)}, ${formatPrice(point.price)} cent per kilowattuur${selected ? `, onderdeel van de goedkoopste ${this._config.cheapest_hours} uur` : ''}.`;
+    live.textContent = `${formatTime(point.timestamp, this._chart.timeZone)} tot ${formatTime(nextTime, this._chart.timeZone)}, ${liveEntries.join(', ')}.`;
   }
 
   _hideTooltip() {
     this.shadowRoot.querySelector('.tooltip')?.setAttribute('hidden', '');
     this.shadowRoot.querySelector('.hover-line')?.setAttribute('hidden', '');
-    this.shadowRoot.querySelector('.hover-dot')?.setAttribute('hidden', '');
+    this.shadowRoot.querySelector('[data-series="import"]')?.setAttribute('hidden', '');
+    this.shadowRoot.querySelector('[data-series="export"]')?.setAttribute('hidden', '');
   }
 
   _styles() {
@@ -668,7 +723,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         --zero-color: #18a999;
         --negative-color: #168aad;
         --cheapest-fill: color-mix(in srgb, var(--cheap) 13%, transparent);
-        --cheapest-stripe: color-mix(in srgb, var(--cheap) 42%, transparent);
+        --export-best-fill: color-mix(in srgb, var(--primary-color) 11%, transparent);
         display: block;
         height: 100%;
       }
@@ -677,25 +732,28 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
       .heading { min-width: 0; }
       h2 { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 650; letter-spacing: -0.01em; }
-      .heading p { margin: 5px 0 0; color: var(--secondary-text-color); font-size: 12px; }
-      .header-cheapest { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; color: var(--secondary-text-color); font-size: 12px; font-weight: 600; }
-      .current-block { display: grid; justify-items: end; gap: 5px; flex: none; margin-left: auto; }
-      .current { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 5px; padding: 7px 10px; border-radius: 8px; background: var(--secondary-background-color); font-variant-numeric: tabular-nums; }
-      .current strong { font-size: 22px; line-height: 1; }
-      .current span { font-size: 11px; color: var(--secondary-text-color); }
+      .header-cheapest { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; min-height: 34px; color: var(--secondary-text-color); font-size: 12px; font-weight: 600; }
+      .header-cheapest span { display: inline-flex; align-items: center; gap: 6px; }
+      .current-block { display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; flex: none; margin-left: auto; }
+      .current-metric { display: grid; justify-items: end; gap: 3px; min-width: 0; }
+      .current-label { color: var(--secondary-text-color); font-size: 10px; font-weight: 650; }
+      .current { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 5px; padding: 7px 9px; border-radius: 8px; background: var(--secondary-background-color); font-variant-numeric: tabular-nums; }
+      .current strong { font-size: 20px; line-height: 1; }
+      .current span { font-size: 10px; color: var(--secondary-text-color); }
       .current.negative strong { color: var(--negative-color); }
       .current.cheap strong { color: var(--cheap); }
       .current.normal strong { color: var(--normal); }
       .current.expensive strong { color: var(--expensive); }
       .current.unavailable strong { color: var(--secondary-text-color); }
-      .current-window { color: var(--secondary-text-color); font-size: 10px; font-weight: 600; }
+      .current-window { color: var(--secondary-text-color); font-size: 9px; font-weight: 650; }
       .current-window.active { color: var(--cheap); }
-      .legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 14px 0 2px; color: var(--secondary-text-color); font-size: 11px; }
+      .legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 12px 0 2px; color: var(--secondary-text-color); font-size: 11px; }
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
       .swatch { width: 15px; height: 4px; border-radius: 4px; background: var(--divider-color); }
-      .swatch.cheap { background: var(--cheap); }
-      .swatch.expensive { background: var(--expensive); }
-      .swatch.selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--cheap) 45%, transparent); }
+      .swatch.import-series { background: var(--primary-color); }
+      .swatch.export-series { height: 0; border-top: 3px dashed var(--primary-color); background: none; border-radius: 0; }
+      .swatch.selection, .swatch.export-selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--cheap) 45%, transparent); }
+      .swatch.export-selection { background: var(--export-best-fill); border-color: color-mix(in srgb, var(--primary-color) 45%, transparent); }
       .chart { position: relative; flex: 1 1 300px; min-height: 120px; outline: none; touch-action: pan-y; }
       .chart:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); border-radius: 8px; }
       svg { display: block; width: 100%; height: 100%; overflow: hidden; }
@@ -705,18 +763,25 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .day-label { top: 8px; color: var(--primary-text-color); font-size: 11px; font-weight: 700; }
       .now-label { top: 8px; transform: translateX(-50%); color: var(--primary-text-color); font-size: 10px; font-weight: 700; }
       .level-label { right: 3px; transform: translateY(-135%); color: var(--secondary-text-color); font-size: 10px; }
-      .average-label { left: 50px; transform: translateY(-135%); color: var(--primary-text-color); font-size: 10px; font-weight: 650; }
+      .level-label.import-level:nth-of-type(1) { color: var(--cheap); }
+      .average-label { transform: translateY(-135%); color: var(--primary-text-color); font-size: 10px; font-weight: 650; }
+      .export-average-label { border-bottom: 1px dashed currentColor; }
       .day-divider { stroke: var(--primary-text-color); stroke-opacity: 0.28; stroke-dasharray: 4 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .area { fill: url(#price-area); stroke: none; }
-      .price-line { fill: none; stroke: url(#price-line-gradient); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+      .price-line { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+      .import-line { stroke: url(#price-line-gradient); }
+      .export-line { stroke: url(#export-line-gradient); stroke-dasharray: 9 5; }
       .level-line { stroke-opacity: 0.55; stroke-dasharray: 5 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
-      .cheap-level { stroke: var(--cheap); }
+      .cheap-level[data-level-class="import-level"] { stroke: var(--cheap); }
       .normal-level { stroke: var(--normal); }
-      .expensive-level { stroke: var(--expensive); }
-      .cheap-label { color: var(--cheap); }
-      .normal-label { color: var(--normal); }
-      .expensive-label { color: var(--expensive); }
-      .average-line { stroke: var(--primary-text-color); stroke-opacity: 0.58; stroke-dasharray: 8 5; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+      .expensive-level[data-level-class="import-level"] { stroke: var(--expensive); }
+      .cheap-level[data-level-class="export-level"] { stroke: var(--expensive); }
+      .expensive-level[data-level-class="export-level"] { stroke: var(--cheap); }
+      .level-line[data-level-class="neutral-level"] { stroke: var(--secondary-text-color); }
+      .neutral-level { color: var(--secondary-text-color); }
+      .average-line { stroke: var(--primary-text-color); stroke-opacity: 0.62; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+      .import-average { stroke-dasharray: 8 5; }
+      .export-average { stroke-dasharray: 2 5; }
       .now-line { stroke: var(--primary-text-color); stroke-opacity: 0.72; stroke-dasharray: 3 3; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
       .hover-line { stroke: var(--primary-text-color); stroke-opacity: 0.75; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
       .hover-dot { position: absolute; z-index: 2; width: 12px; height: 12px; box-sizing: border-box; border: 3px solid; border-radius: 50%; transform: translate(-50%, -50%); background: var(--card-background-color); pointer-events: none; }
@@ -724,12 +789,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .hover-dot.cheap { border-color: var(--cheap); }
       .hover-dot.normal { border-color: var(--normal); }
       .hover-dot.expensive { border-color: var(--expensive); }
-      .tooltip { position: absolute; z-index: 2; transform: translate(-50%, -108%); min-width: 126px; padding: 9px 11px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2); pointer-events: none; font-variant-numeric: tabular-nums; }
+      .export-dot { width: 14px; height: 14px; border-style: dashed; }
+      .tooltip { position: absolute; z-index: 3; transform: translate(-50%, -50%); min-width: 180px; padding: 9px 11px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2); pointer-events: none; font-variant-numeric: tabular-nums; }
       .tooltip strong, .tooltip span, .tooltip small { display: block; white-space: nowrap; }
-      .tooltip strong { font-size: 14px; }
+      .tooltip strong { margin-bottom: 4px; font-size: 12px; }
       .tooltip span { margin-top: 2px; font-size: 12px; }
-      .tooltip small { margin-top: 3px; color: var(--secondary-text-color); font-size: 10px; }
-      .cheapest-table-wrap { flex: 0 1 auto; min-height: 0; max-height: 240px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--divider-color); overflow: auto; }
+      .tooltip span b { display: inline-block; min-width: 90px; }
+      .tooltip small { margin: 1px 0 4px 16px; color: var(--secondary-text-color); font-size: 10px; }
+      .tooltip-series { display: inline-block; width: 10px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--primary-color); }
+      .tooltip-series.export { height: 0; border-top: 2px dashed var(--primary-color); background: none; }
+      .price-table-wrap { flex: 0 1 auto; min-height: 0; max-height: 190px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--divider-color); overflow: auto; }
+      .price-table-wrap h3 { margin: 0 0 4px; font-size: 11px; font-weight: 700; }
       .cheapest-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
       .cheapest-table th, .cheapest-table td { padding: 6px 8px; text-align: left; white-space: nowrap; }
       .cheapest-table th { color: var(--secondary-text-color); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -741,11 +811,22 @@ class DynamicEnergyPriceCard extends HTMLElement {
       [hidden] { display: none !important; }
       @media (max-width: 520px) {
         .card-content { padding: 12px 12px 10px; }
-        .header { gap: 10px; }
+        .header { gap: 8px; }
         h2 { font-size: 17px; }
-        .current strong { font-size: 19px; }
-        .legend { gap: 6px 10px; }
+        .current-block { gap: 5px; max-width: 64%; }
+        .current { padding: 6px; column-gap: 3px; }
+        .current strong { font-size: 17px; }
+        .current span { font-size: 8px; }
+        .current-label { font-size: 9px; }
+        .legend { gap: 6px 10px; margin-top: 9px; }
         .chart { flex-basis: 260px; min-height: 110px; }
+        .tooltip { min-width: 166px; }
+      }
+      @media (max-width: 360px) {
+        .header { flex-wrap: wrap; }
+        .current-block { width: 100%; max-width: none; margin-left: 0; justify-content: stretch; }
+        .current-metric { flex: 1 1 0; justify-items: stretch; }
+        .current { justify-content: center; }
       }
       @media (prefers-reduced-motion: reduce) { .tooltip { transition: none; } }
     `;
@@ -761,7 +842,7 @@ if (!window.customCards.some((card) => card.type === 'dynamic-energy-price-card'
   window.customCards.push({
     type: 'dynamic-energy-price-card',
     name: 'Dynamische energieprijzen',
-    description: 'Tibber-kwartierprijzen met goedkoopste vier uur per dag.',
+    description: 'Afname- en terugleverprijzen met gunstige momenten per dag.',
     preview: true,
   });
 }

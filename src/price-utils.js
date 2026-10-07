@@ -32,6 +32,37 @@ export function calculateAveragePrice(points) {
   return points.reduce((total, point) => total + Number(point.price), 0) / points.length;
 }
 
+export function offsetPriceData(data, offset) {
+  const amount = Number(offset);
+  if (!Array.isArray(data) || !Number.isFinite(amount)) return [];
+  return data.map((entry) => ({
+    ...entry,
+    price_per_kwh: Number((Number(entry?.price_per_kwh) + amount).toFixed(10)),
+  }));
+}
+
+export function mergePriceSeries(importPoints = [], exportPoints = []) {
+  const merged = new Map();
+  for (const point of importPoints) {
+    merged.set(point.timestamp, {
+      timestamp: point.timestamp,
+      startTime: point.startTime,
+      dayKey: point.dayKey,
+      importPrice: point.price,
+    });
+  }
+  for (const point of exportPoints) {
+    const existing = merged.get(point.timestamp) ?? {
+      timestamp: point.timestamp,
+      startTime: point.startTime,
+      dayKey: point.dayKey,
+    };
+    existing.exportPrice = point.price;
+    merged.set(point.timestamp, existing);
+  }
+  return [...merged.values()].sort((left, right) => left.timestamp - right.timestamp);
+}
+
 export function classifyPrice(price, threshold = 0.25) {
   return Number(price) < Number(threshold) ? 'cheap' : 'expensive';
 }
@@ -135,13 +166,25 @@ export function findCurrentPoint(points, now = new Date()) {
 }
 
 export function selectCheapestDuration(points, totalMinutes = 240) {
+  return selectDurationByPrice(points, totalMinutes, 'lowest');
+}
+
+export function selectHighestDuration(points, totalMinutes = 240) {
+  return selectDurationByPrice(points, totalMinutes, 'highest');
+}
+
+function selectDurationByPrice(points, totalMinutes, direction) {
   const selected = new Set();
   if (!points.length || totalMinutes <= 0) return selected;
   const intervalMinutes = inferIntervalMinutes(points);
   const count = Math.min(points.length, Math.ceil(totalMinutes / intervalMinutes));
   const ordered = [...points].sort(
-    (left, right) => left.price - right.price || left.timestamp - right.timestamp,
+    direction === 'highest'
+      ? (left, right) => right.price - left.price || left.timestamp - right.timestamp
+      : (left, right) => left.price - right.price || left.timestamp - right.timestamp,
   );
-  for (const point of ordered.slice(0, count)) selected.add(point.timestamp);
+  for (const point of ordered.slice(0, count).sort((left, right) => left.timestamp - right.timestamp)) {
+    selected.add(point.timestamp);
+  }
   return selected;
 }
