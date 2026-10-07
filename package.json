@@ -1,6 +1,6 @@
 {
   "name": "dynamic-energy-price-card",
-  "version": "1.6.1-beta.1",
+  "version": "1.6.1",
   "private": true,
   "type": "module",
   "scripts": {
