@@ -32,7 +32,7 @@ Eén zelfstandige Lovelace-card. Bovenaan staan optioneel de titel en één of t
 - Motion: 140 ms tooltip/hover; uit bij reduced motion.
 
 ## Component rules
-De card leest `attributes.data` van de verplichte afname-entity. Elk punt bevat `start_time` en `price_per_kwh`. Terugleverprijzen komen optioneel uit een tweede entity met dezelfde opbouw of worden berekend als `afnameprijs + export_price_offset`; een ingestelde terugleverentity krijgt voorrang op de offset. De native editor groepeert instellingen in uitklapbare kopjes `Afname` en `Teruglevering`. Afname- en terugleverlijnen gebruiken dezelfde numerieke prijsgrenzen, maar tegengestelde kleursemantiek. Wanneer `show_title` uit staat, neemt actieve gunstige-urencontext de titelpositie over.
+De card leest `attributes.data` van de verplichte afname-entity. Elk punt bevat `start_time` en `price_per_kwh`. Terugleverprijzen gebruiken een tweede entity met dezelfde opbouw. `export_price_offset` wordt uitsluitend bij de prijs uit die terugleverentity opgeteld; de afnamereeks is nooit de basis voor deze offset. De native editor groepeert instellingen in uitklapbare kopjes `Afname` en `Teruglevering`. Afname- en terugleverlijnen gebruiken dezelfde numerieke prijsgrenzen, maar tegengestelde kleursemantiek. Wanneer `show_title` uit staat, neemt actieve gunstige-urencontext de titelpositie over.
 
 ## Data display and forms
 Prijs wordt in ct/kWh getoond, met twee decimalen in tooltip. Teruglevering wordt als prijs/opbrengst getoond en niet kunstmatig negatief gemaakt; echte negatieve marktwaarden blijven wel mogelijk. `graph_mode` en `current_price_mode` bieden `import`, `both` en `export`; de actuele-prijsmodus ondersteunt daarnaast `none`. Tijd wordt Nederlands als `HH:mm–HH:mm` weergegeven. Vandaag en morgen worden als aparte kalenderdagen behandeld.
@@ -46,7 +46,7 @@ Hover, pointer-drag en tik tonen één verticale richtlijn en per zichtbare seri
 - Morgen vóór 14:00: verborgen, met korte tekst dat morgenprijzen vanaf 14:00 verschijnen.
 - Onvolledige morgenprijzen na 14:00: beschikbare data tonen en als onvolledig markeren.
 - Verouderde data: waarschuwing wanneer vandaag niet voorkomt.
-- Teruglevermodus zonder terugleverentity of offset: concrete configuratiefout met hersteladvies.
+- Teruglevermodus zonder terugleverentity: concrete configuratiefout met hersteladvies.
 - Gedeeltelijk ontbrekende terugleverintervallen: afnamedata blijft zichtbaar; ontbrekende waarde wordt als `—` gemeld.
 
 ## Responsive behavior and supported viewports
@@ -78,7 +78,7 @@ Geen blokkerende ontwerpbeslissingen.
 - De titel kan worden verborgen; actieve goedkoopste-urencontext verschijnt dan op de titelpositie.
 - Standaard blijven grafiek en actuele prijs op alleen afname staan, zodat bestaande configuraties hetzelfde ogen.
 - Grafiekmodus en actuele-prijsmodus zijn onafhankelijk instelbaar op afname, beide of teruglevering; actuele prijzen kunnen ook volledig uit.
-- Terugleverdata kan uit een tweede entity of uit `afname + offset` komen; de entity heeft voorrang.
+- Terugleverdata komt uit een tweede entity; de optionele offset wordt uitsluitend op die terugleverentity toegepast.
 - De terugleverlijn gebruikt dezelfde grenzen maar omgekeerde kleuren: hoge terugleverprijs groen, lage terugleverprijs rood.
 - Per dag kunnen afzonderlijk de laagste afnameprijzen en hoogste terugleverprijzen worden geselecteerd en in tabellen worden getoond.
 - De native editor bevat herkenbare uitklapbare groepen voor `Afname` en `Teruglevering`.

@@ -192,8 +192,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
         expensive_price: 'Boven deze prijs is afname duur en teruglevering gunstig.',
         cheapest_hours: '0 schakelt de selectie van goedkope afname-uren uit.',
         show_cheapest_table: 'Toont aaneengesloten goedkope afnamemomenten onder de grafiek.',
-        export_entity: 'Heeft voorrang op het ingestelde prijsverschil.',
-        export_price_offset: 'Terugleverprijs = afnameprijs + verschil. Negatieve waarden zijn toegestaan.',
+        export_entity: 'Prijsbron voor teruglevering. Verplicht zodra teruglevering wordt getoond.',
+        export_price_offset: 'Terugleverprijs = prijs uit terugleverentity + verschil. Negatieve waarden zijn toegestaan.',
         export_best_hours: '0 schakelt de selectie van beste terugleveruren uit.',
         show_export_table: 'Toont aaneengesloten beste teruglevermomenten onder de grafiek.',
         tomorrow_after: 'Vanaf dit uur worden beschikbare morgenprijzen getoond.',
@@ -251,11 +251,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
   }
 
   _hasExportSource() {
-    return Boolean(this._config?.export_entity)
-      || (this._config?.export_price_offset !== undefined
-        && this._config?.export_price_offset !== null
-        && this._config?.export_price_offset !== ''
-        && Number.isFinite(Number(this._config.export_price_offset)));
+    return Boolean(this._config?.export_entity);
   }
 
   _exportRequired() {
@@ -325,7 +321,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     if (this._exportRequired() && !this._hasExportSource()) {
       this.shadowRoot.innerHTML = this._stateCard(
         'Terugleverbron ontbreekt',
-        'Stel export_entity of export_price_offset in, of kies alleen afname.',
+        'Stel export_entity in, of kies alleen afname.',
       );
       return;
     }
@@ -350,9 +346,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
       return;
     }
 
-    let rawExportData = null;
-    if (exportState) rawExportData = exportState.attributes?.data;
-    else if (this._hasExportSource()) rawExportData = offsetPriceData(rawImportData, this._config.export_price_offset);
+    const hasExportOffset = this._config.export_price_offset !== undefined
+      && this._config.export_price_offset !== null
+      && this._config.export_price_offset !== ''
+      && Number.isFinite(Number(this._config.export_price_offset));
+    const exportOffset = hasExportOffset ? Number(this._config.export_price_offset) : 0;
+    const rawExportData = exportState
+      ? offsetPriceData(exportState.attributes?.data, exportOffset)
+      : null;
     const exportPoints = rawExportData
       ? getVisiblePoints(rawExportData, now, timeZone, this._config.tomorrow_after)
       : [];

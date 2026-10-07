@@ -103,6 +103,8 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('class="price-line export-line"', card)
         self.assertIn('stroke-dasharray: 9 5', card)
         self.assertIn('selectHighestDuration', card)
+        self.assertIn('offsetPriceData(exportState.attributes?.data, exportOffset)', card)
+        self.assertNotIn('offsetPriceData(rawImportData, exportOffset)', card)
 
 
 if __name__ == "__main__":

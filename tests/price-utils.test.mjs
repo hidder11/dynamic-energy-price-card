@@ -119,6 +119,14 @@ test('return prices can be derived from import prices with a signed offset', () 
   assert.equal(source[0].price_per_kwh, 0.30);
 });
 
+test('a signed offset can also modify a dedicated return-price entity', () => {
+  const returnSource = quarterDay('2026-10-07', 0.08).slice(0, 2);
+  assert.deepEqual(
+    offsetPriceData(returnSource, 0.02).map((point) => point.price_per_kwh),
+    [0.10, 0.1001],
+  );
+});
+
 test('import and return series merge by timestamp while preserving missing values', () => {
   const importPoints = normalizePoints(quarterDay('2026-10-07', 0.30).slice(0, 3), zone);
   const exportPoints = normalizePoints(quarterDay('2026-10-07', 0.10).slice(1, 3), zone);

@@ -2,7 +2,7 @@
 
 A standalone Home Assistant dashboard card for comparing dynamic electricity import and export tariffs on one timeline.
 
-Existing configurations remain import-only by default. Export prices can come from a second sensor or be calculated from the import tariff with a signed offset.
+Existing configurations remain import-only by default. Export prices come from a second sensor and may be adjusted with a signed offset.
 
 ## Features
 
@@ -11,7 +11,7 @@ Existing configurations remain import-only by default. Export prices can come fr
 - Solid import line and dashed export line with explicit legend labels
 - Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
 - Real tariff values are preserved; export prices are not sign-inverted
-- Export source from a sensor or `import + export_price_offset`; the sensor takes precedence
+- Export source from a dedicated sensor; `export_price_offset` adjusts that export series
 - Today's prices and optional tomorrow prices after a configurable local hour
 - Current interval prices and a vertical **Now** marker
 - Hover, touch, and keyboard tooltips for every visible series, including safe missing-value display
@@ -32,13 +32,13 @@ start_time: "2026-10-07T14:00:00+02:00"
 price_per_kwh: 0.2345
 ```
 
-An optional `export_entity` uses the same format. If no export entity is configured, `export_price_offset` can derive export data:
+An optional `export_entity` uses the same format. It is required when export prices are shown. The offset is applied to that entity:
 
 ```text
-export price = import price + export_price_offset
+export price = export entity price + export_price_offset
 ```
 
-Offsets may be negative. If both `export_entity` and `export_price_offset` are configured, the entity wins.
+Offsets may be negative. The import entity is never used as the base for an export offset.
 
 ## Installation with HACS
 
