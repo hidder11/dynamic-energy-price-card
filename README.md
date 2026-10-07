@@ -18,6 +18,7 @@ Existing configurations remain import-only by default. Export prices come from a
 - Hover, touch, and keyboard tooltips for every visible series, including safe missing-value display
 - Optional per-series average lines with unambiguous labels
 - Lowest import periods and highest export periods selected independently per day
+- Best export periods use a consistent blue highlight in light and dark themes
 - Separate optional tables for cheapest import and best export periods
 - Native Home Assistant visual editor with expandable **Afname** and **Teruglevering** groups
 - Native card sizing in Home Assistant Sections views

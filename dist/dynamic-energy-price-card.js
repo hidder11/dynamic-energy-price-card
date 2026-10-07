@@ -900,8 +900,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
         --expensive: var(--error-color, #e45c4f);
         --zero-color: #18a999;
         --negative-color: #168aad;
+        --export-best: #1976d2;
         --cheapest-fill: color-mix(in srgb, var(--cheap) 13%, transparent);
-        --export-best-fill: color-mix(in srgb, var(--primary-color) 11%, transparent);
+        --export-best-fill: color-mix(in srgb, var(--export-best) 18%, transparent);
         display: block;
         height: 100%;
       }
@@ -925,13 +926,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .current.unavailable strong { color: var(--secondary-text-color); }
       .current-window { color: var(--secondary-text-color); font-size: 9px; font-weight: 650; }
       .current-window.active { color: var(--cheap); }
+      .current-metric.export .current-window.active { color: var(--export-best); }
       .legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 12px 0 2px; color: var(--secondary-text-color); font-size: 11px; }
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
       .swatch { width: 15px; height: 4px; border-radius: 4px; background: var(--divider-color); }
       .swatch.import-series { background: var(--primary-color); }
       .swatch.export-series { height: 3px; border-radius: 0; background: repeating-linear-gradient(90deg, var(--primary-color) 0 7px, transparent 7px 13px); }
       .swatch.selection, .swatch.export-selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--cheap) 45%, transparent); }
-      .swatch.export-selection { background: var(--export-best-fill); border-color: color-mix(in srgb, var(--primary-color) 45%, transparent); }
+      .swatch.export-selection { background: var(--export-best-fill); border-color: color-mix(in srgb, var(--export-best) 55%, transparent); }
       .chart { position: relative; flex: 1 1 300px; min-height: 120px; outline: none; touch-action: pan-y; }
       .chart:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); border-radius: 8px; }
       svg { display: block; width: 100%; height: 100%; overflow: hidden; }

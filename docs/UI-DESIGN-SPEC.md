@@ -81,6 +81,7 @@ Geen blokkerende ontwerpbeslissingen.
 - Terugleverdata komt uit een tweede entity; de optionele offset wordt uitsluitend op die terugleverentity toegepast.
 - De afnamelijn is doorgetrokken. De terugleverlijn gebruikt duidelijk zichtbare onderbrekingen met rechte lijnuiteinden; de legenda toont hetzelfde patroon, zodat de reeksen ook zonder kleur te onderscheiden zijn.
 - De terugleverlijn gebruikt dezelfde grenzen maar omgekeerde kleuren: hoge terugleverprijs groen, lage terugleverprijs rood.
+- Geselecteerde beste terugleverperioden gebruiken een vaste blauwe accentkleur in zowel lichte als donkere Home Assistant-thema's.
 - Per dag kunnen afzonderlijk de laagste afnameprijzen en hoogste terugleverprijzen worden geselecteerd en in tabellen worden getoond.
 - De native editor bevat herkenbare uitklapbare groepen voor `Afname` en `Teruglevering`.
 - Nieuwe Lovelace-dashboardweergave is geïnstalleerd en teruggelezen.
