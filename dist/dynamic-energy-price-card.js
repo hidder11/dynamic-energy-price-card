@@ -281,6 +281,36 @@ const SVG_HEIGHT = 330;
 const PLOT = { left: 44, right: 12, top: 20, bottom: 34 };
 const IMPORT_MODES = new Set(['import', 'both']);
 const EXPORT_MODES = new Set(['export', 'both']);
+const DEFAULT_CONFIG = Object.freeze({
+  graph_mode: 'import',
+  current_price_mode: 'import',
+  title: 'Dynamische energieprijzen',
+  show_title: true,
+  show_hover_line: true,
+  show_average_line: false,
+  show_price_levels: true,
+  tomorrow_after: 14,
+  cheap_price: 0.15,
+  normal_price: 0.25,
+  expensive_price: 0.40,
+  cheapest_hours: 0,
+  import_selection_mode: 'individual',
+  import_minimum_duration: 30,
+  show_cheapest_table: false,
+  import_line_style: 'solid',
+  import_line_width: 3.5,
+  show_import_fill: true,
+  import_fill_fade: true,
+  export_price_offset: 0,
+  export_best_hours: 0,
+  export_selection_mode: 'individual',
+  export_minimum_duration: 30,
+  show_export_table: false,
+  export_line_style: 'dashed',
+  export_line_width: 3.5,
+  show_export_fill: false,
+  export_fill_fade: true,
+});
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
@@ -389,6 +419,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       import_line_color: 'Vaste lijnkleur',
       show_import_fill: 'Vulling onder lijn',
       import_fill_color: 'Vulkleur',
+      import_fill_fade: 'Vulling vervagen',
       import_selection_mode: 'Selectiemethode',
       import_minimum_duration: 'Minimale blokduur',
       export_line_style: 'Lijnstijl',
@@ -396,6 +427,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       export_line_color: 'Vaste lijnkleur',
       show_export_fill: 'Vulling onder lijn',
       export_fill_color: 'Vulkleur',
+      export_fill_fade: 'Vulling vervagen',
       export_selection_mode: 'Selectiemethode',
       export_minimum_duration: 'Minimale blokduur',
       cheap_price: 'Goedkoop',
@@ -432,22 +464,22 @@ class DynamicEnergyPriceCard extends HTMLElement {
           flatten: true,
           schema: [
             {
-              name: 'graph_mode',
+              name: 'graph_mode', default: DEFAULT_CONFIG.graph_mode,
               selector: { select: { mode: 'dropdown', options: modeOptions() } },
             },
             {
-              name: 'current_price_mode',
+              name: 'current_price_mode', default: DEFAULT_CONFIG.current_price_mode,
               selector: { select: { mode: 'dropdown', options: modeOptions(true) } },
             },
-            { name: 'title', selector: { text: {} } },
-            { name: 'show_title', selector: { boolean: {} } },
-            { name: 'show_hover_line', selector: { boolean: {} } },
-            { name: 'show_average_line', selector: { boolean: {} } },
-            { name: 'show_price_levels', selector: { boolean: {} } },
-            { name: 'tomorrow_after', required: true, selector: numberSelector('uur') },
-            { name: 'cheap_price', required: true, selector: thresholdSelector },
-            { name: 'normal_price', required: true, selector: thresholdSelector },
-            { name: 'expensive_price', required: true, selector: thresholdSelector },
+            { name: 'title', default: DEFAULT_CONFIG.title, selector: { text: {} } },
+            { name: 'show_title', default: DEFAULT_CONFIG.show_title, selector: { boolean: {} } },
+            { name: 'show_hover_line', default: DEFAULT_CONFIG.show_hover_line, selector: { boolean: {} } },
+            { name: 'show_average_line', default: DEFAULT_CONFIG.show_average_line, selector: { boolean: {} } },
+            { name: 'show_price_levels', default: DEFAULT_CONFIG.show_price_levels, selector: { boolean: {} } },
+            { name: 'tomorrow_after', default: DEFAULT_CONFIG.tomorrow_after, required: true, selector: numberSelector('uur') },
+            { name: 'cheap_price', default: DEFAULT_CONFIG.cheap_price, required: true, selector: thresholdSelector },
+            { name: 'normal_price', default: DEFAULT_CONFIG.normal_price, required: true, selector: thresholdSelector },
+            { name: 'expensive_price', default: DEFAULT_CONFIG.expensive_price, required: true, selector: thresholdSelector },
           ],
         },
         {
@@ -461,15 +493,16 @@ class DynamicEnergyPriceCard extends HTMLElement {
               required: true,
               selector: { entity: { domain: 'sensor' } },
             },
-            { name: 'cheapest_hours', selector: numberSelector('uur') },
-            { name: 'import_selection_mode', selector: selectionModeSelector },
-            { name: 'import_minimum_duration', selector: minimumDurationSelector },
-            { name: 'show_cheapest_table', selector: { boolean: {} } },
-            { name: 'import_line_style', selector: lineStyleSelector },
-            { name: 'import_line_width', selector: lineWidthSelector },
+            { name: 'cheapest_hours', default: DEFAULT_CONFIG.cheapest_hours, selector: numberSelector('uur') },
+            { name: 'import_selection_mode', default: DEFAULT_CONFIG.import_selection_mode, selector: selectionModeSelector },
+            { name: 'import_minimum_duration', default: DEFAULT_CONFIG.import_minimum_duration, selector: minimumDurationSelector },
+            { name: 'show_cheapest_table', default: DEFAULT_CONFIG.show_cheapest_table, selector: { boolean: {} } },
+            { name: 'import_line_style', default: DEFAULT_CONFIG.import_line_style, selector: lineStyleSelector },
+            { name: 'import_line_width', default: DEFAULT_CONFIG.import_line_width, selector: lineWidthSelector },
             { name: 'import_line_color', selector: lineColorSelector },
-            { name: 'show_import_fill', selector: { boolean: {} } },
+            { name: 'show_import_fill', default: DEFAULT_CONFIG.show_import_fill, selector: { boolean: {} } },
             { name: 'import_fill_color', selector: lineColorSelector },
+            { name: 'import_fill_fade', default: DEFAULT_CONFIG.import_fill_fade, selector: { boolean: {} } },
           ],
         },
         {
@@ -480,18 +513,19 @@ class DynamicEnergyPriceCard extends HTMLElement {
           schema: [
             { name: 'export_entity', selector: { entity: { domain: 'sensor' } } },
             {
-              name: 'export_price_offset',
+              name: 'export_price_offset', default: DEFAULT_CONFIG.export_price_offset,
               selector: { number: { min: -1, max: 1, step: 0.001, mode: 'box', unit_of_measurement: '€/kWh' } },
             },
-            { name: 'export_best_hours', selector: numberSelector('uur') },
-            { name: 'export_selection_mode', selector: selectionModeSelector },
-            { name: 'export_minimum_duration', selector: minimumDurationSelector },
-            { name: 'show_export_table', selector: { boolean: {} } },
-            { name: 'export_line_style', selector: lineStyleSelector },
-            { name: 'export_line_width', selector: lineWidthSelector },
+            { name: 'export_best_hours', default: DEFAULT_CONFIG.export_best_hours, selector: numberSelector('uur') },
+            { name: 'export_selection_mode', default: DEFAULT_CONFIG.export_selection_mode, selector: selectionModeSelector },
+            { name: 'export_minimum_duration', default: DEFAULT_CONFIG.export_minimum_duration, selector: minimumDurationSelector },
+            { name: 'show_export_table', default: DEFAULT_CONFIG.show_export_table, selector: { boolean: {} } },
+            { name: 'export_line_style', default: DEFAULT_CONFIG.export_line_style, selector: lineStyleSelector },
+            { name: 'export_line_width', default: DEFAULT_CONFIG.export_line_width, selector: lineWidthSelector },
             { name: 'export_line_color', selector: lineColorSelector },
-            { name: 'show_export_fill', selector: { boolean: {} } },
+            { name: 'show_export_fill', default: DEFAULT_CONFIG.show_export_fill, selector: { boolean: {} } },
             { name: 'export_fill_color', selector: lineColorSelector },
+            { name: 'export_fill_fade', default: DEFAULT_CONFIG.export_fill_fade, selector: { boolean: {} } },
           ],
         },
       ],
@@ -511,6 +545,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         import_line_color: 'Optioneel. Leeg behoudt de automatische prijskleuren.',
         show_import_fill: 'Toont een transparante kleur onder de afnamelijn.',
         import_fill_color: 'Optioneel. Leeg gebruikt de primaire Home Assistant-kleur.',
+        import_fill_fade: 'Laat de vulling geleidelijk transparant worden naar de onderkant.',
         import_selection_mode: 'Kies losse kwartieren, één blok of meerdere blokken.',
         import_minimum_duration: 'Alleen gebruikt bij blokken met minimale duur.',
         export_line_style: 'Kies doorgetrokken, gestreept of gestippeld.',
@@ -518,6 +553,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         export_line_color: 'Optioneel. Leeg behoudt de automatische prijskleuren.',
         show_export_fill: 'Toont een transparante kleur onder de terugleverlijn.',
         export_fill_color: 'Optioneel. Leeg gebruikt blauw.',
+        export_fill_fade: 'Laat de vulling geleidelijk transparant worden naar de onderkant.',
         export_selection_mode: 'Kies losse kwartieren, één blok of meerdere blokken.',
         export_minimum_duration: 'Alleen gebruikt bij blokken met minimale duur.',
         cheap_price: 'Onder deze prijs is afname goedkoop; voor teruglevering is laag juist ongunstig.',
@@ -537,62 +573,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
   static getStubConfig() {
     return {
       entity: 'sensor.tibber_prijzen',
-      graph_mode: 'import',
-      current_price_mode: 'import',
-      title: 'Dynamische energieprijzen',
-      show_title: true,
-      show_hover_line: true,
-      show_average_line: false,
-      show_price_levels: true,
-      import_line_style: 'solid',
-      import_line_width: 3.5,
-      show_import_fill: true,
-      import_selection_mode: 'individual',
-      import_minimum_duration: 30,
-      export_line_style: 'dashed',
-      export_line_width: 3.5,
-      show_export_fill: false,
-      export_selection_mode: 'individual',
-      export_minimum_duration: 30,
-      cheap_price: 0.15,
-      normal_price: 0.25,
-      expensive_price: 0.40,
-      cheapest_hours: 0,
-      show_cheapest_table: false,
-      export_best_hours: 0,
-      show_export_table: false,
-      tomorrow_after: 14,
+      ...DEFAULT_CONFIG,
     };
   }
 
   setConfig(config) {
     if (!config?.entity) throw new Error('Een prijsentity voor afname is verplicht.');
     this._config = {
-      title: 'Dynamische energieprijzen',
-      graph_mode: 'import',
-      current_price_mode: 'import',
-      show_title: true,
-      show_hover_line: true,
-      show_average_line: false,
-      show_price_levels: true,
-      import_line_style: 'solid',
-      import_line_width: 3.5,
-      show_import_fill: true,
-      import_selection_mode: 'individual',
-      import_minimum_duration: 30,
-      export_line_style: 'dashed',
-      export_line_width: 3.5,
-      show_export_fill: false,
-      export_selection_mode: 'individual',
-      export_minimum_duration: 30,
-      cheap_price: 0.15,
-      normal_price: 0.25,
-      expensive_price: 0.40,
-      cheapest_hours: 0,
-      show_cheapest_table: false,
-      export_best_hours: 0,
-      show_export_table: false,
-      tomorrow_after: 14,
+      ...DEFAULT_CONFIG,
       ...config,
     };
     if (!['import', 'both', 'export'].includes(this._config.graph_mode)) this._config.graph_mode = 'import';
@@ -784,6 +772,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
       : '';
     const importFillColor = rgbColorToCss(this._config.import_fill_color) ?? 'var(--primary-color)';
     const exportFillColor = rgbColorToCss(this._config.export_fill_color) ?? 'var(--export-best)';
+    const importAreaClass = `area import-area${this._config.import_fill_fade !== false ? ' fade' : ''}`;
+    const exportAreaClass = `area export-area${this._config.export_fill_fade !== false ? ' fade' : ''}`;
 
     const selectionRects = timeline.map((point) => {
       const x = xFor(point.timestamp);
@@ -924,9 +914,13 @@ class DynamicEnergyPriceCard extends HTMLElement {
           <div class="chart" tabindex="0" role="img" aria-label="Elektriciteitsprijzen per interval. Gebruik de pijltjestoetsen om prijzen te bekijken.">
             <svg viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="none" aria-hidden="true">
               <defs>
-                <linearGradient id="price-area" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.14" />
-                  <stop offset="100%" stop-color="var(--primary-color)" stop-opacity="0.01" />
+                <linearGradient id="import-area-gradient" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="var(--import-fill-color)" stop-opacity="0.22" />
+                  <stop offset="100%" stop-color="var(--import-fill-color)" stop-opacity="0.01" />
+                </linearGradient>
+                <linearGradient id="export-area-gradient" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="var(--export-fill-color)" stop-opacity="0.22" />
+                  <stop offset="100%" stop-color="var(--export-fill-color)" stop-opacity="0.01" />
                 </linearGradient>
                 <linearGradient id="price-line-gradient" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stop-color="var(--expensive)" /><stop offset="${expensiveOffset}%" stop-color="var(--expensive)" />
@@ -939,8 +933,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
                 </linearGradient>
               </defs>
               ${selectionRects}${levelLines}${averageLine}
-              ${importAreaPath ? `<path d="${importAreaPath}" class="area import-area" />` : ''}
-              ${exportAreaPath ? `<path d="${exportAreaPath}" class="area export-area" />` : ''}
+              ${importAreaPath ? `<path d="${importAreaPath}" class="${importAreaClass}" />` : ''}
+              ${exportAreaPath ? `<path d="${exportAreaPath}" class="${exportAreaClass}" />` : ''}
               ${importPath ? `<path d="${importPath}" class="price-line import-line" style="stroke:${importAppearance.stroke};stroke-width:${importAppearance.width};stroke-dasharray:${importAppearance.dash};stroke-linecap:${importAppearance.cap}" />` : ''}
               ${exportPath ? `<path d="${exportPath}" class="price-line export-line" style="stroke:${exportAppearance.stroke};stroke-width:${exportAppearance.width};stroke-dasharray:${exportAppearance.dash};stroke-linecap:${exportAppearance.cap}" />` : ''}
               ${dayMarkers}${nowMarker}${hoverLine}
@@ -1220,6 +1214,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .area { stroke: none; opacity: 0.14; }
       .import-area { fill: var(--import-fill-color); }
       .export-area { fill: var(--export-fill-color); }
+      .import-area.fade { fill: url(#import-area-gradient); opacity: 1; }
+      .export-area.fade { fill: url(#export-area-gradient); opacity: 1; }
       .price-line { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
       .level-line { stroke-opacity: 0.55; stroke-dasharray: 5 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .cheap-level[data-level-class="import-level"] { stroke: var(--cheap); }

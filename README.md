@@ -11,7 +11,7 @@ Existing configurations remain import-only by default. Export prices come from a
 - Solid import line and dashed export line with explicit legend labels
 - Clearly separated export dashes with matching graph and legend patterns
 - Independent line style (`solid`, `dashed`, or `dotted`), thickness, and optional fixed RGB color for import and export
-- Optional per-series area fill with an independent RGB color
+- Optional per-series area fill with an independent RGB color and configurable vertical fade
 - Clickable legend items temporarily show or hide each graph series
 - Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
 - Real tariff values are preserved; export prices are not sign-inverted
@@ -72,6 +72,7 @@ show_price_levels: true
 import_line_style: solid
 import_line_width: 3.5
 show_import_fill: true
+import_fill_fade: true
 import_selection_mode: minimum_blocks
 import_minimum_duration: 30
 cheap_price: 0.15
@@ -133,6 +134,7 @@ show_export_table: true
 | `import_line_color` | No | — | Optional RGB color override. Empty keeps automatic threshold colors. |
 | `show_import_fill` | No | `true` | Shows a transparent fill below the import line. |
 | `import_fill_color` | No | — | Optional RGB fill color. Empty uses the Home Assistant primary color. |
+| `import_fill_fade` | No | `true` | Fades the import fill towards the bottom of the chart. |
 | `import_selection_mode` | No | `individual` | `individual`, `contiguous`, or `minimum_blocks`. |
 | `import_minimum_duration` | No | `30` | Minimum block duration in minutes for `minimum_blocks`. |
 | `export_line_style` | No | `dashed` | Export line style: `solid`, `dashed`, or `dotted`. |
@@ -140,6 +142,7 @@ show_export_table: true
 | `export_line_color` | No | — | Optional RGB color override. Empty keeps automatic reversed threshold colors. |
 | `show_export_fill` | No | `false` | Shows a transparent fill below the export line. |
 | `export_fill_color` | No | — | Optional RGB fill color. Empty uses the export highlight blue. |
+| `export_fill_fade` | No | `true` | Fades the export fill towards the bottom of the chart when enabled. |
 | `export_selection_mode` | No | `individual` | `individual`, `contiguous`, or `minimum_blocks`. |
 | `export_minimum_duration` | No | `30` | Minimum block duration in minutes for `minimum_blocks`. |
 | `cheap_price` | No | `0.15` | Low threshold in EUR/kWh. Low import is favorable; low export is unfavorable. |

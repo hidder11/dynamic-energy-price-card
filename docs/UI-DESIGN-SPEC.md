@@ -38,7 +38,7 @@ De card leest `attributes.data` van de verplichte afname-entity. Elk punt bevat 
 Prijs wordt in ct/kWh getoond, met twee decimalen in tooltip. Teruglevering wordt als prijs/opbrengst getoond en niet kunstmatig negatief gemaakt; echte negatieve marktwaarden blijven wel mogelijk. `graph_mode` en `current_price_mode` bieden `import`, `both` en `export`; de actuele-prijsmodus ondersteunt daarnaast `none`. Lijnstijlen bieden doorgetrokken, gestreept en gestippeld; dikte loopt van 1 tot 8 px in stappen van 0,5. Een lege kleurwaarde herstelt de automatische prijskleuren. Tijd wordt Nederlands als `HH:mm–HH:mm` weergegeven. Vandaag en morgen worden als aparte kalenderdagen behandeld.
 
 ## Interaction and feedback
-Hover, pointer-drag en tik tonen één verticale richtlijn en per zichtbare serie een ronde marker. De tooltip noemt tijd, de zichtbare afname- en/of terugleverprijs en de gunstige-periodestatus. Afname selecteert de laagste prijzen; teruglevering selecteert de hoogste prijzen. Klikken op een tarief in de legenda verbergt of toont die grafiekreeks tijdelijk. Iedere reeks heeft onafhankelijk instelbare vulling en vulkleur.
+Hover, pointer-drag en tik tonen één verticale richtlijn en per zichtbare serie een ronde marker. De tooltip noemt tijd, de zichtbare afname- en/of terugleverprijs en de gunstige-periodestatus. Afname selecteert de laagste prijzen; teruglevering selecteert de hoogste prijzen. Klikken op een tarief in de legenda verbergt of toont die grafiekreeks tijdelijk. Iedere reeks heeft onafhankelijk instelbare vulling, vulkleur en verticale fade.
 
 ## Empty, loading, error, permission, and destructive states
 - Ontbrekende entity: concrete configuratiefout.
@@ -90,6 +90,7 @@ Geen blokkerende ontwerpbeslissingen.
 - Nieuwe Lovelace-dashboardweergave is geïnstalleerd en teruggelezen.
 
 ## Change log
+- 2026-10-08: effectieve runtime-defaults aan het native editorschema gekoppeld; optionele fade per lijnvulling toegevoegd.
 - 2026-10-08: selectiemodi, instelbare minimumblokduur, klikbare legenda, afzonderlijke lijnvullingen en één gecombineerde periodentabel vastgelegd.
 - 2026-10-08: editor heringedeeld in Algemeen/Afname/Teruglevering; onafhankelijke lijnopmaak en consistente typografie gespecificeerd.
 - 2026-10-07: dubbele afname-/terugleverweergave, onafhankelijke modi, offsetbron, omgekeerde terugleverkleuren en gegroepeerde editorinstellingen vastgelegd.

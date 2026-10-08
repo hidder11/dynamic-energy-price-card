@@ -147,15 +147,38 @@ class CardSourceTests(unittest.TestCase):
         card = CARD.read_text(encoding="utf-8")
         for field in (
             'show_import_fill', 'import_fill_color',
-            'show_export_fill', 'export_fill_color',
+            'import_fill_fade', 'show_export_fill', 'export_fill_color',
+            'export_fill_fade',
         ):
             self.assertIn(f"name: '{field}'", card)
         self.assertIn("show_import_fill: true", card)
         self.assertIn("show_export_fill: false", card)
-        self.assertIn('class="area import-area"', card)
-        self.assertIn('class="area export-area"', card)
+        self.assertIn("import_fill_fade: true", card)
+        self.assertIn("export_fill_fade: true", card)
+        self.assertIn('id="import-area-gradient"', card)
+        self.assertIn('id="export-area-gradient"', card)
+        self.assertIn("this._config.import_fill_fade !== false ? ' fade' : ''", card)
+        self.assertIn("this._config.export_fill_fade !== false ? ' fade' : ''", card)
         self.assertIn('--import-fill-color:', card)
         self.assertIn('--export-fill-color:', card)
+
+    def test_native_editor_displays_the_effective_runtime_defaults(self):
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('const DEFAULT_CONFIG = Object.freeze({', card)
+        self.assertIn('...DEFAULT_CONFIG,', card)
+        fields = (
+            'graph_mode', 'current_price_mode', 'title', 'show_title',
+            'show_hover_line', 'show_average_line', 'show_price_levels',
+            'tomorrow_after', 'cheap_price', 'normal_price', 'expensive_price',
+            'cheapest_hours', 'import_selection_mode', 'import_minimum_duration',
+            'show_cheapest_table', 'import_line_style', 'import_line_width',
+            'show_import_fill', 'import_fill_fade', 'export_price_offset',
+            'export_best_hours', 'export_selection_mode', 'export_minimum_duration',
+            'show_export_table', 'export_line_style', 'export_line_width',
+            'show_export_fill', 'export_fill_fade',
+        )
+        for field in fields:
+            self.assertIn(f"name: '{field}', default: DEFAULT_CONFIG.{field}", card)
 
     def test_legend_items_toggle_their_series(self):
         card = CARD.read_text(encoding="utf-8")
