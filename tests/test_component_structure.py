@@ -55,7 +55,7 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('normal_price: 0.25', card)
         self.assertIn('expensive_price: 0.40', card)
         self.assertIn('cheapest_hours: 0', card)
-        self.assertIn('const legend = cheapestEnabled', card)
+        self.assertIn('const legend = legendItems.length', card)
         self.assertNotIn('${yGrid}', card)
         self.assertNotIn('.grid-line {', card)
         self.assertIn('class="level-line cheap-level"', card)
@@ -66,8 +66,8 @@ class CardSourceTests(unittest.TestCase):
         self.assertNotIn('${escapeHtml(availability)}', card)
         self.assertIn('Goedkoopst</div>', card)
         self.assertIn('show_cheapest_table: false', card)
-        self.assertIn('const cheapestTable =', card)
-        self.assertIn('<table class="cheapest-table', card)
+        self.assertIn('const favorableTable =', card)
+        self.assertIn('<table class="cheapest-table favorable-table"', card)
         self.assertIn("name: 'show_cheapest_table'", card)
         self.assertIn('show_hover_line: true', card)
         self.assertIn('show_average_line: false', card)
@@ -142,6 +142,58 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('selectHighestDuration', card)
         self.assertIn('offsetPriceData(exportState.attributes?.data, exportOffset)', card)
         self.assertNotIn('offsetPriceData(rawImportData, exportOffset)', card)
+
+    def test_series_fills_are_independently_configurable(self):
+        card = CARD.read_text(encoding="utf-8")
+        for field in (
+            'show_import_fill', 'import_fill_color',
+            'show_export_fill', 'export_fill_color',
+        ):
+            self.assertIn(f"name: '{field}'", card)
+        self.assertIn("show_import_fill: true", card)
+        self.assertIn("show_export_fill: false", card)
+        self.assertIn('class="area import-area"', card)
+        self.assertIn('class="area export-area"', card)
+        self.assertIn('--import-fill-color:', card)
+        self.assertIn('--export-fill-color:', card)
+
+    def test_legend_items_toggle_their_series(self):
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('class="legend-series"', card)
+        self.assertIn('data-series="${type}"', card)
+        self.assertIn("querySelectorAll('.legend-series')", card)
+        self.assertIn("this._hiddenSeries.has(type)", card)
+        self.assertIn("this._toggleSeries(type)", card)
+        self.assertIn("aria-pressed=", card)
+
+    def test_favorable_periods_share_one_semantic_table(self):
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn("this._periodTable(importPeriods, exportPeriods", card)
+        self.assertIn("const typeLabel = type === 'import' ? 'Afname' : 'Teruglevering';", card)
+        self.assertIn('class="period-type ${type}"', card)
+        self.assertIn('<h3>Gunstige momenten</h3>', card)
+        self.assertIn('<th>Moment</th>', card)
+        self.assertNotIn("this._periodTable('Goedkoopste afname'", card)
+        self.assertNotIn("this._periodTable('Beste teruglevering'", card)
+
+    def test_import_and_export_support_all_favorable_period_selection_modes(self):
+        card = CARD.read_text(encoding="utf-8")
+        for field in (
+            'import_selection_mode', 'import_minimum_duration',
+            'export_selection_mode', 'export_minimum_duration',
+        ):
+            self.assertIn(f"name: '{field}'", card)
+        self.assertIn("{ value: 'individual', label: 'Losse kwartieren' }", card)
+        self.assertIn("{ value: 'contiguous', label: 'Eén aaneengesloten blok' }", card)
+        self.assertIn("{ value: 'minimum_blocks', label: 'Blokken met minimale duur' }", card)
+        self.assertIn("import_selection_mode: 'individual'", card)
+        self.assertIn("export_selection_mode: 'individual'", card)
+        self.assertIn("import_minimum_duration: 30", card)
+        self.assertIn("export_minimum_duration: 30", card)
+        self.assertIn("mode: this._config.import_selection_mode", card)
+        self.assertIn("minimumBlockMinutes: this._config.import_minimum_duration", card)
+        self.assertIn("mode: this._config.export_selection_mode", card)
+        self.assertIn("minimumBlockMinutes: this._config.export_minimum_duration", card)
 
 
 if __name__ == "__main__":

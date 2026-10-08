@@ -13,6 +13,7 @@ import {
   normalizeLineStyle,
   normalizeLineWidth,
   normalizePoints,
+  normalizeSelectionMode,
   offsetPriceData,
   rgbColorToCss,
   selectCheapestDuration,
@@ -158,4 +159,47 @@ test('highest return-price intervals are selected independently from cheapest im
   const points = normalizePoints(quarterDay('2026-10-07', 0.10), zone);
   const highest = selectHighestDuration(points, 60);
   assert.deepEqual([...highest], points.slice(-4).map((point) => point.timestamp));
+});
+
+test('one contiguous block selects the cheapest adjacent intervals', () => {
+  const prices = [0.01, 0.50, 0.20, 0.21, 0.22, 0.60, 0.02, 0.03];
+  const points = normalizePoints(quarterDay('2026-10-07').slice(0, prices.length).map((point, index) => ({
+    ...point,
+    price_per_kwh: prices[index],
+  })), zone);
+  const selected = selectCheapestDuration(points, 45, { mode: 'contiguous' });
+  assert.deepEqual([...selected], points.slice(2, 5).map((point) => point.timestamp));
+});
+
+test('minimum-block mode never creates a selected run shorter than the configured duration', () => {
+  const prices = [0.01, 0.50, 0.02, 0.03, 0.60, 0.04, 0.05, 0.70];
+  const points = normalizePoints(quarterDay('2026-10-07').slice(0, prices.length).map((point, index) => ({
+    ...point,
+    price_per_kwh: prices[index],
+  })), zone);
+  const selected = selectCheapestDuration(points, 60, {
+    mode: 'minimum_blocks',
+    minimumBlockMinutes: 30,
+  });
+  const periods = groupSelectedPeriods(points, selected, 15);
+  assert.equal(selected.size, 4);
+  assert.ok(periods.every((period) => period.durationMinutes >= 30));
+});
+
+test('selection modes also support the highest export prices', () => {
+  const prices = [0.10, 0.80, 0.79, 0.20, 0.70, 0.69, 0.10, 0.05];
+  const points = normalizePoints(quarterDay('2026-10-07').slice(0, prices.length).map((point, index) => ({
+    ...point,
+    price_per_kwh: prices[index],
+  })), zone);
+  const contiguous = selectHighestDuration(points, 30, { mode: 'contiguous' });
+  assert.deepEqual([...contiguous], points.slice(1, 3).map((point) => point.timestamp));
+  const blocks = selectHighestDuration(points, 60, { mode: 'minimum_blocks', minimumBlockMinutes: 30 });
+  assert.deepEqual([...blocks], points.slice(1, 3).concat(points.slice(4, 6)).map((point) => point.timestamp));
+});
+
+test('unknown selection mode safely falls back to individual intervals', () => {
+  assert.equal(normalizeSelectionMode('contiguous'), 'contiguous');
+  assert.equal(normalizeSelectionMode('minimum_blocks'), 'minimum_blocks');
+  assert.equal(normalizeSelectionMode('unknown'), 'individual');
 });

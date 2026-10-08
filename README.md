@@ -11,6 +11,8 @@ Existing configurations remain import-only by default. Export prices come from a
 - Solid import line and dashed export line with explicit legend labels
 - Clearly separated export dashes with matching graph and legend patterns
 - Independent line style (`solid`, `dashed`, or `dotted`), thickness, and optional fixed RGB color for import and export
+- Optional per-series area fill with an independent RGB color
+- Clickable legend items temporarily show or hide each graph series
 - Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
 - Real tariff values are preserved; export prices are not sign-inverted
 - Export source from a dedicated sensor; `export_price_offset` adjusts that export series
@@ -18,10 +20,10 @@ Existing configurations remain import-only by default. Export prices come from a
 - Current interval prices and a vertical **Now** marker
 - Hover, touch, and keyboard tooltips for every visible series, including safe missing-value display
 - Optional per-series average lines with unambiguous labels
-- Lowest import periods and highest export periods selected independently per day
+- Lowest import periods and highest export periods selected independently per day as loose intervals, one contiguous block, or blocks with a configurable minimum duration
 - Best export periods use a consistent blue highlight in light and dark themes
-- Separate optional tables for cheapest import and best export periods
-- Native Home Assistant visual editor with expandable **Afname** and **Teruglevering** groups
+- One optional table for favorable import and export periods, with explicit colored type labels
+- Native Home Assistant visual editor with expandable **General**, **Import**, and **Export** groups
 - Native card sizing in Home Assistant Sections views
 - Responsive current-price metrics and chart from 320 px card width
 - No external runtime dependencies
@@ -69,6 +71,9 @@ show_average_line: false
 show_price_levels: true
 import_line_style: solid
 import_line_width: 3.5
+show_import_fill: true
+import_selection_mode: minimum_blocks
+import_minimum_duration: 30
 cheap_price: 0.15
 normal_price: 0.25
 expensive_price: 0.40
@@ -96,11 +101,12 @@ show_export_table: true
 tomorrow_after: 14
 ```
 
-### Export prices derived with an offset
+### Correct an export entity with an offset
 
 ```yaml
 type: custom:dynamic-energy-price-card
 entity: sensor.dynamic_import_prices
+export_entity: sensor.dynamic_export_prices
 export_price_offset: -0.12
 graph_mode: both
 current_price_mode: export
@@ -125,9 +131,17 @@ show_export_table: true
 | `import_line_style` | No | `solid` | Import line style: `solid`, `dashed`, or `dotted`. |
 | `import_line_width` | No | `3.5` | Import line thickness from 1 to 8 px. |
 | `import_line_color` | No | — | Optional RGB color override. Empty keeps automatic threshold colors. |
+| `show_import_fill` | No | `true` | Shows a transparent fill below the import line. |
+| `import_fill_color` | No | — | Optional RGB fill color. Empty uses the Home Assistant primary color. |
+| `import_selection_mode` | No | `individual` | `individual`, `contiguous`, or `minimum_blocks`. |
+| `import_minimum_duration` | No | `30` | Minimum block duration in minutes for `minimum_blocks`. |
 | `export_line_style` | No | `dashed` | Export line style: `solid`, `dashed`, or `dotted`. |
 | `export_line_width` | No | `3.5` | Export line thickness from 1 to 8 px. |
 | `export_line_color` | No | — | Optional RGB color override. Empty keeps automatic reversed threshold colors. |
+| `show_export_fill` | No | `false` | Shows a transparent fill below the export line. |
+| `export_fill_color` | No | — | Optional RGB fill color. Empty uses the export highlight blue. |
+| `export_selection_mode` | No | `individual` | `individual`, `contiguous`, or `minimum_blocks`. |
+| `export_minimum_duration` | No | `30` | Minimum block duration in minutes for `minimum_blocks`. |
 | `cheap_price` | No | `0.15` | Low threshold in EUR/kWh. Low import is favorable; low export is unfavorable. |
 | `normal_price` | No | `0.25` | Middle gradient anchor in EUR/kWh. |
 | `expensive_price` | No | `0.40` | High threshold in EUR/kWh. High import is unfavorable; high export is favorable. |
@@ -149,7 +163,13 @@ An export source is required only when the selected graph mode, current-price mo
 
 ## Favorable periods
 
-`cheapest_hours` chooses the lowest-priced import intervals per calendar day. `export_best_hours` independently chooses the highest-priced export intervals per calendar day. Intervals do not need to be consecutive; consecutive selected intervals are combined into one table row.
+`cheapest_hours` chooses the lowest-priced import duration per calendar day. `export_best_hours` independently chooses the highest-priced export duration. Each tariff supports three modes:
+
+- `individual`: the best loose intervals;
+- `contiguous`: one best contiguous block;
+- `minimum_blocks`: the best one or more blocks, where every block meets the configured minimum duration.
+
+Selected import and export periods share one table and remain clearly labelled.
 
 With quarter-hour data and a value of `4`, sixteen intervals are selected per day.
 
@@ -161,6 +181,7 @@ With quarter-hour data and a value of `4`, sixteen intervals are selected per da
 - The graph is keyboard focusable. Use Left/Right, Home, End, and Escape.
 - Tooltip text is mirrored to an `aria-live` region.
 - Tapping outside the chart dismisses a touch tooltip.
+- Clicking an import or export legend item toggles that graph series without changing the saved configuration.
 
 ## Sections view sizing
 

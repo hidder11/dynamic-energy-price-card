@@ -84,6 +84,10 @@ export function normalizeLineStyle(value, fallback = 'solid') {
   return allowed.has(value) ? value : allowed.has(fallback) ? fallback : 'solid';
 }
 
+export function normalizeSelectionMode(value) {
+  return ['individual', 'contiguous', 'minimum_blocks'].includes(value) ? value : 'individual';
+}
+
 export function normalizeLineWidth(value, fallback = 3.5) {
   const parsed = Number(value);
   const fallbackValue = Number(fallback);
@@ -184,19 +188,82 @@ export function findCurrentPoint(points, now = new Date()) {
   return points.find((point) => point.timestamp <= timestamp && timestamp < point.timestamp + intervalMs) ?? null;
 }
 
-export function selectCheapestDuration(points, totalMinutes = 240) {
-  return selectDurationByPrice(points, totalMinutes, 'lowest');
+export function selectCheapestDuration(points, totalMinutes = 240, options = {}) {
+  return selectDurationByPrice(points, totalMinutes, 'lowest', options);
 }
 
-export function selectHighestDuration(points, totalMinutes = 240) {
-  return selectDurationByPrice(points, totalMinutes, 'highest');
+export function selectHighestDuration(points, totalMinutes = 240, options = {}) {
+  return selectDurationByPrice(points, totalMinutes, 'highest', options);
 }
 
-function selectDurationByPrice(points, totalMinutes, direction) {
+function compareScore(candidate, current, direction) {
+  if (!current) return true;
+  return direction === 'highest' ? candidate > current.score : candidate < current.score;
+}
+
+function selectContiguousDuration(points, count, intervalMinutes, direction) {
+  let best = null;
+  for (let start = 0; start + count <= points.length; start += 1) {
+    const window = points.slice(start, start + count);
+    const contiguous = window.every((point, index) => (
+      index === 0 || point.timestamp - window[index - 1].timestamp === intervalMinutes * 60000
+    ));
+    if (!contiguous) continue;
+    const score = window.reduce((total, point) => total + point.price, 0);
+    if (compareScore(score, best, direction)) best = { score, window };
+  }
+  return new Set((best?.window ?? []).map((point) => point.timestamp));
+}
+
+function selectMinimumBlocks(points, count, intervalMinutes, minimumBlockMinutes, direction) {
+  const requestedMinimum = Number(minimumBlockMinutes);
+  const minimumCount = Math.max(1, Math.min(
+    count,
+    Number.isFinite(requestedMinimum) ? Math.ceil(requestedMinimum / intervalMinutes) : 2,
+  ));
+  let states = new Map([['0|0', { selected: 0, run: 0, score: 0, indices: [] }]]);
+  for (let index = 0; index < points.length; index += 1) {
+    const contiguous = index === 0 || points[index].timestamp - points[index - 1].timestamp === intervalMinutes * 60000;
+    const next = new Map();
+    const save = (state) => {
+      const key = `${state.selected}|${state.run}`;
+      if (compareScore(state.score, next.get(key), direction)) next.set(key, state);
+    };
+    for (const original of states.values()) {
+      if (!contiguous && original.run > 0 && original.run < minimumCount) continue;
+      const state = !contiguous && original.run >= minimumCount ? { ...original, run: 0 } : original;
+      if (state.run === 0 || state.run >= minimumCount) save({ ...state, run: 0 });
+      if (state.selected < count) {
+        const run = state.run === 0 ? 1 : Math.min(minimumCount, state.run + 1);
+        save({
+          selected: state.selected + 1,
+          run,
+          score: state.score + points[index].price,
+          indices: [...state.indices, index],
+        });
+      }
+    }
+    states = next;
+  }
+  const candidates = [...states.values()].filter((state) => (
+    state.selected === count && (state.run === 0 || state.run >= minimumCount)
+  ));
+  const best = candidates.reduce((current, candidate) => (
+    compareScore(candidate.score, current, direction) ? candidate : current
+  ), null);
+  return new Set((best?.indices ?? []).map((index) => points[index].timestamp));
+}
+
+function selectDurationByPrice(points, totalMinutes, direction, options = {}) {
   const selected = new Set();
   if (!points.length || totalMinutes <= 0) return selected;
   const intervalMinutes = inferIntervalMinutes(points);
   const count = Math.min(points.length, Math.ceil(totalMinutes / intervalMinutes));
+  const mode = normalizeSelectionMode(options.mode);
+  if (mode === 'contiguous') return selectContiguousDuration(points, count, intervalMinutes, direction);
+  if (mode === 'minimum_blocks') {
+    return selectMinimumBlocks(points, count, intervalMinutes, options.minimumBlockMinutes, direction);
+  }
   const ordered = [...points].sort(
     direction === 'highest'
       ? (left, right) => right.price - left.price || left.timestamp - right.timestamp

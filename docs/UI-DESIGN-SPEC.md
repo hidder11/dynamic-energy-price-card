@@ -5,7 +5,7 @@ Een Home Assistant-card voor bewoners met een dynamisch energiecontract. De card
 
 ## Primary workflows and priorities
 1. In één oogopslag de huidige prijs en kleurklasse zien.
-2. De 16 goedkoopste kwartieren per kalenderdag herkennen; samen vier uur.
+2. De gunstigste afname- en teruglevermomenten herkennen als losse kwartieren, één blok of blokken met een minimale duur.
 3. Met muis of aanraking een specifiek kwartier inspecteren.
 4. Vandaag vergelijken met morgen, maar morgen pas vanaf 14:00 lokale tijd tonen.
 5. Afname, teruglevering of beide vergelijken zonder negatieve tekenconventie voor teruglevering.
@@ -38,7 +38,7 @@ De card leest `attributes.data` van de verplichte afname-entity. Elk punt bevat 
 Prijs wordt in ct/kWh getoond, met twee decimalen in tooltip. Teruglevering wordt als prijs/opbrengst getoond en niet kunstmatig negatief gemaakt; echte negatieve marktwaarden blijven wel mogelijk. `graph_mode` en `current_price_mode` bieden `import`, `both` en `export`; de actuele-prijsmodus ondersteunt daarnaast `none`. Lijnstijlen bieden doorgetrokken, gestreept en gestippeld; dikte loopt van 1 tot 8 px in stappen van 0,5. Een lege kleurwaarde herstelt de automatische prijskleuren. Tijd wordt Nederlands als `HH:mm–HH:mm` weergegeven. Vandaag en morgen worden als aparte kalenderdagen behandeld.
 
 ## Interaction and feedback
-Hover, pointer-drag en tik tonen één verticale richtlijn en per zichtbare serie een ronde marker. De tooltip noemt tijd, de zichtbare afname- en/of terugleverprijs en de gunstige-periodestatus. Afname selecteert de laagste prijzen; teruglevering selecteert de hoogste prijzen.
+Hover, pointer-drag en tik tonen één verticale richtlijn en per zichtbare serie een ronde marker. De tooltip noemt tijd, de zichtbare afname- en/of terugleverprijs en de gunstige-periodestatus. Afname selecteert de laagste prijzen; teruglevering selecteert de hoogste prijzen. Klikken op een tarief in de legenda verbergt of toont die grafiekreeks tijdelijk. Iedere reeks heeft onafhankelijk instelbare vulling en vulkleur.
 
 ## Empty, loading, error, permission, and destructive states
 - Ontbrekende entity: concrete configuratiefout.
@@ -56,8 +56,7 @@ Volledig bruikbaar vanaf 320 px cardbreedte. Op smalle schermen worden secundair
 Nederlandse labels, toetsenbordfocus op de grafiek en pijltjestoetsen voor vorig/volgend interval. Tooltipinformatie komt in een `aria-live`-regio. Arcering en tekstlabels ondersteunen kleurwaarneming.
 
 ## Rejected alternatives and rationale
-- Alleen vier aaneengesloten uren: afgewezen door gebruiker.
-- Vier hele uurblokken: bron gebruikt kwartierprijzen; de 16 goedkoopste kwartieren sluiten beter aan op “goedkoopste momenten, samen vier uur”.
+- Eén verplichte selectiemethode: afgewezen; losse intervallen, één aaneengesloten blok en meerdere blokken met minimale duur zijn alle drie beschikbaar.
 - Externe chartlibrary: afgewezen om updates en Home Assistant-compatibiliteit eenvoudiger te houden.
 - Twee grafieken onder elkaar: afgewezen; één gedeelde tijdas maakt directe vergelijking eenvoudiger en gebruikt minder dashboardhoogte.
 - Teruglevering onder nul tekenen alleen vanwege de energierichting: afgewezen; beide tarieven gebruiken hun werkelijke prijswaarde.
@@ -68,7 +67,7 @@ Geen blokkerende ontwerpbeslissingen.
 ## Acceptance criteria
 - Alleen vandaag en morgen worden getoond.
 - Morgen verschijnt niet vóór 14:00 lokale Home Assistant-tijd.
-- Per zichtbare dag worden de goedkoopste intervallen geselecteerd tot exact 240 minuten; bij kwartierdata zijn dit 16 intervallen.
+- Per zichtbare dag wordt de ingestelde gunstige duur geselecteerd; bij vier uur kwartierdata zijn dit 16 intervallen.
 - Intervallen onder €0,25/kWh zijn goedkoop gekleurd; €0,25/kWh en hoger duur.
 - De goedkoopste intervallen zijn gearceerd en ook tekstueel herkenbaar in de tooltip.
 - Hover, touch en toetsenbord tonen prijs en tijd.
@@ -83,12 +82,15 @@ Geen blokkerende ontwerpbeslissingen.
 - De terugleverlijn gebruikt dezelfde grenzen maar omgekeerde kleuren: hoge terugleverprijs groen, lage terugleverprijs rood.
 - Geselecteerde beste terugleverperioden gebruiken een vaste blauwe accentkleur in zowel lichte als donkere Home Assistant-thema's.
 - Onder de algemene instellingen kan `Prijsgrenzen tonen` de lijnen én prijslabels voor goedkoop, normaal en duur gezamenlijk verbergen. De grenswaarden blijven actief voor de kleurclassificatie.
-- Per dag kunnen afzonderlijk de laagste afnameprijzen en hoogste terugleverprijzen worden geselecteerd en in tabellen worden getoond.
+- Per dag kunnen afzonderlijk de laagste afnameprijzen en hoogste terugleverprijzen worden geselecteerd als losse intervallen, één aaneengesloten blok of meerdere blokken met een instelbare minimale duur.
+- Afname en teruglevering delen één tabel met duidelijke tekst- en kleurlabels.
+- Vulling en vulkleur zijn per reeks instelbaar; legenda-items kunnen de zichtbare lijnen tijdelijk schakelen.
 - De native editor bevat herkenbare uitklapbare groepen voor `Algemeen`, `Afname` en `Teruglevering`; prijsgrenzen staan onder `Algemeen`.
 - De card gebruikt één consistente typografische schaal en alleen de gewichten 400, 500 en 600.
 - Nieuwe Lovelace-dashboardweergave is geïnstalleerd en teruggelezen.
 
 ## Change log
+- 2026-10-08: selectiemodi, instelbare minimumblokduur, klikbare legenda, afzonderlijke lijnvullingen en één gecombineerde periodentabel vastgelegd.
 - 2026-10-08: editor heringedeeld in Algemeen/Afname/Teruglevering; onafhankelijke lijnopmaak en consistente typografie gespecificeerd.
 - 2026-10-07: dubbele afname-/terugleverweergave, onafhankelijke modi, offsetbron, omgekeerde terugleverkleuren en gegroepeerde editorinstellingen vastgelegd.
 - 2026-10-07: native Sections-sizing en een optioneel verborgen titel vastgelegd.

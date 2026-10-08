@@ -13,6 +13,7 @@ import {
   mergePriceSeries,
   normalizeLineStyle,
   normalizeLineWidth,
+  normalizeSelectionMode,
   offsetPriceData,
   rgbColorToCss,
   selectCheapestDuration,
@@ -100,10 +101,17 @@ const lineStyleOptions = [
   { value: 'dotted', label: 'Gestippeld' },
 ];
 
+const selectionModeOptions = [
+  { value: 'individual', label: 'Losse kwartieren' },
+  { value: 'contiguous', label: 'Eén aaneengesloten blok' },
+  { value: 'minimum_blocks', label: 'Blokken met minimale duur' },
+];
+
 class DynamicEnergyPriceCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._hiddenSeries = new Set();
     this._onOutsidePointer = (event) => {
       const chart = this.shadowRoot?.querySelector('.chart');
       if (chart && !event.composedPath().includes(chart)) this._hideTooltip();
@@ -125,9 +133,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
       import_line_style: 'Lijnstijl',
       import_line_width: 'Lijndikte',
       import_line_color: 'Vaste lijnkleur',
+      show_import_fill: 'Vulling onder lijn',
+      import_fill_color: 'Vulkleur',
+      import_selection_mode: 'Selectiemethode',
+      import_minimum_duration: 'Minimale blokduur',
       export_line_style: 'Lijnstijl',
       export_line_width: 'Lijndikte',
       export_line_color: 'Vaste lijnkleur',
+      show_export_fill: 'Vulling onder lijn',
+      export_fill_color: 'Vulkleur',
+      export_selection_mode: 'Selectiemethode',
+      export_minimum_duration: 'Minimale blokduur',
       cheap_price: 'Goedkoop',
       normal_price: 'Normaal',
       expensive_price: 'Duur',
@@ -148,6 +164,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
       number: { min: 1, max: 8, step: 0.5, mode: 'box', unit_of_measurement: 'px' },
     };
     const lineColorSelector = { color_rgb: {} };
+    const selectionModeSelector = { select: { mode: 'dropdown', options: selectionModeOptions } };
+    const minimumDurationSelector = {
+      number: { min: 15, max: 360, step: 15, mode: 'box', unit_of_measurement: 'min' },
+    };
 
     return {
       schema: [
@@ -188,10 +208,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
               selector: { entity: { domain: 'sensor' } },
             },
             { name: 'cheapest_hours', selector: numberSelector('uur') },
+            { name: 'import_selection_mode', selector: selectionModeSelector },
+            { name: 'import_minimum_duration', selector: minimumDurationSelector },
             { name: 'show_cheapest_table', selector: { boolean: {} } },
             { name: 'import_line_style', selector: lineStyleSelector },
             { name: 'import_line_width', selector: lineWidthSelector },
             { name: 'import_line_color', selector: lineColorSelector },
+            { name: 'show_import_fill', selector: { boolean: {} } },
+            { name: 'import_fill_color', selector: lineColorSelector },
           ],
         },
         {
@@ -206,10 +230,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
               selector: { number: { min: -1, max: 1, step: 0.001, mode: 'box', unit_of_measurement: '€/kWh' } },
             },
             { name: 'export_best_hours', selector: numberSelector('uur') },
+            { name: 'export_selection_mode', selector: selectionModeSelector },
+            { name: 'export_minimum_duration', selector: minimumDurationSelector },
             { name: 'show_export_table', selector: { boolean: {} } },
             { name: 'export_line_style', selector: lineStyleSelector },
             { name: 'export_line_width', selector: lineWidthSelector },
             { name: 'export_line_color', selector: lineColorSelector },
+            { name: 'show_export_fill', selector: { boolean: {} } },
+            { name: 'export_fill_color', selector: lineColorSelector },
           ],
         },
       ],
@@ -227,9 +255,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
         import_line_style: 'Kies doorgetrokken, gestreept of gestippeld.',
         import_line_width: 'Lijndikte van 1 tot 8 pixels.',
         import_line_color: 'Optioneel. Leeg behoudt de automatische prijskleuren.',
+        show_import_fill: 'Toont een transparante kleur onder de afnamelijn.',
+        import_fill_color: 'Optioneel. Leeg gebruikt de primaire Home Assistant-kleur.',
+        import_selection_mode: 'Kies losse kwartieren, één blok of meerdere blokken.',
+        import_minimum_duration: 'Alleen gebruikt bij blokken met minimale duur.',
         export_line_style: 'Kies doorgetrokken, gestreept of gestippeld.',
         export_line_width: 'Lijndikte van 1 tot 8 pixels.',
         export_line_color: 'Optioneel. Leeg behoudt de automatische prijskleuren.',
+        show_export_fill: 'Toont een transparante kleur onder de terugleverlijn.',
+        export_fill_color: 'Optioneel. Leeg gebruikt blauw.',
+        export_selection_mode: 'Kies losse kwartieren, één blok of meerdere blokken.',
+        export_minimum_duration: 'Alleen gebruikt bij blokken met minimale duur.',
         cheap_price: 'Onder deze prijs is afname goedkoop; voor teruglevering is laag juist ongunstig.',
         normal_price: 'Middelste prijsgrens voor beide tarieven.',
         expensive_price: 'Boven deze prijs is afname duur en teruglevering gunstig.',
@@ -256,8 +292,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_price_levels: true,
       import_line_style: 'solid',
       import_line_width: 3.5,
+      show_import_fill: true,
+      import_selection_mode: 'individual',
+      import_minimum_duration: 30,
       export_line_style: 'dashed',
       export_line_width: 3.5,
+      show_export_fill: false,
+      export_selection_mode: 'individual',
+      export_minimum_duration: 30,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -281,8 +323,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_price_levels: true,
       import_line_style: 'solid',
       import_line_width: 3.5,
+      show_import_fill: true,
+      import_selection_mode: 'individual',
+      import_minimum_duration: 30,
       export_line_style: 'dashed',
       export_line_width: 3.5,
+      show_export_fill: false,
+      export_selection_mode: 'individual',
+      export_minimum_duration: 30,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -295,6 +343,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
     };
     if (!['import', 'both', 'export'].includes(this._config.graph_mode)) this._config.graph_mode = 'import';
     if (!['import', 'both', 'export', 'none'].includes(this._config.current_price_mode)) this._config.current_price_mode = 'import';
+    this._config.import_selection_mode = normalizeSelectionMode(this._config.import_selection_mode);
+    this._config.export_selection_mode = normalizeSelectionMode(this._config.export_selection_mode);
     const levels = [this._config.cheap_price, this._config.normal_price, this._config.expensive_price].map(Number);
     if (!levels.every(Number.isFinite) || !(levels[0] < levels[1] && levels[1] < levels[2])) {
       throw new Error('Prijsniveaus moeten oplopen: goedkoop < normaal < duur.');
@@ -411,8 +461,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
       ? getVisiblePoints(rawExportData, now, timeZone, this._config.tomorrow_after)
       : [];
     const timeline = mergePriceSeries(importPoints, exportPoints);
-    const graphShowsImport = IMPORT_MODES.has(this._config.graph_mode);
-    const graphShowsExport = EXPORT_MODES.has(this._config.graph_mode);
+    const graphIncludesImport = IMPORT_MODES.has(this._config.graph_mode);
+    const graphIncludesExport = EXPORT_MODES.has(this._config.graph_mode);
+    const graphShowsImport = graphIncludesImport && !this._hiddenSeries.has('import');
+    const graphShowsExport = graphIncludesExport && !this._hiddenSeries.has('export');
     const currentShowsImport = IMPORT_MODES.has(this._config.current_price_mode);
     const currentShowsExport = EXPORT_MODES.has(this._config.current_price_mode);
 
@@ -424,12 +476,18 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const exportSelected = new Set();
     if (cheapestEnabled) {
       for (const dayPoints of importGroups.values()) {
-        for (const timestamp of selectCheapestDuration(dayPoints, Number(this._config.cheapest_hours) * 60)) importSelected.add(timestamp);
+        for (const timestamp of selectCheapestDuration(dayPoints, Number(this._config.cheapest_hours) * 60, {
+          mode: this._config.import_selection_mode,
+          minimumBlockMinutes: this._config.import_minimum_duration,
+        })) importSelected.add(timestamp);
       }
     }
     if (exportBestEnabled) {
       for (const dayPoints of exportGroups.values()) {
-        for (const timestamp of selectHighestDuration(dayPoints, Number(this._config.export_best_hours) * 60)) exportSelected.add(timestamp);
+        for (const timestamp of selectHighestDuration(dayPoints, Number(this._config.export_best_hours) * 60, {
+          mode: this._config.export_selection_mode,
+          minimumBlockMinutes: this._config.export_minimum_duration,
+        })) exportSelected.add(timestamp);
       }
     }
 
@@ -461,9 +519,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const exportPath = graphShowsExport ? seriesPath(timeline, 'exportPrice', xFor, yFor, intervalMs) : '';
     const importAppearance = this._seriesAppearance('import');
     const exportAppearance = this._seriesAppearance('export');
-    const importAreaPath = graphShowsImport && importPath && timeline.every((point) => Number.isFinite(point.importPrice))
-      ? `${importPath} L ${xFor(timeline.at(-1).timestamp)} ${PLOT.top + plotHeight} L ${xFor(start)} ${PLOT.top + plotHeight} Z`
+    const areaPath = (path, key) => path && timeline.every((point) => Number.isFinite(point[key]))
+      ? `${path} L ${xFor(timeline.at(-1).timestamp)} ${PLOT.top + plotHeight} L ${xFor(start)} ${PLOT.top + plotHeight} Z`
       : '';
+    const importAreaPath = graphShowsImport && this._config.show_import_fill !== false
+      ? areaPath(importPath, 'importPrice')
+      : '';
+    const exportAreaPath = graphShowsExport && this._config.show_export_fill === true
+      ? areaPath(exportPath, 'exportPrice')
+      : '';
+    const importFillColor = rgbColorToCss(this._config.import_fill_color) ?? 'var(--primary-color)';
+    const exportFillColor = rgbColorToCss(this._config.export_fill_color) ?? 'var(--export-best)';
 
     const selectionRects = timeline.map((point) => {
       const x = xFor(point.timestamp);
@@ -573,18 +639,21 @@ class DynamicEnergyPriceCard extends HTMLElement {
         ? `<div class="heading"><div class="header-cheapest">${contextLabels.join('')}</div></div>`
         : '';
     const seriesLegend = [];
-    if (graphShowsImport) seriesLegend.push(this._seriesLegendItem('import', 'Afname'));
-    if (graphShowsExport) seriesLegend.push(this._seriesLegendItem('export', 'Teruglevering'));
+    if (graphIncludesImport) seriesLegend.push(this._seriesLegendItem('import', 'Afname'));
+    if (graphIncludesExport) seriesLegend.push(this._seriesLegendItem('export', 'Teruglevering'));
     const legendItems = [...seriesLegend, ...(showTitle ? contextLabels : [])];
-    const legend = cheapestEnabled || exportBestEnabled || legendItems.length > 1
+    const legend = legendItems.length
       ? `<div class="legend" aria-label="Legenda">${legendItems.join('')}</div>`
       : '';
 
-    const cheapestTable = cheapestEnabled && this._config.show_cheapest_table
-      ? this._periodTable('Goedkoopste afname', importPoints, importSelected, intervalMinutes, timeZone, todayKey, tomorrowKey, 'cheapest-table')
-      : '';
-    const exportTable = exportBestEnabled && this._config.show_export_table
-      ? this._periodTable('Beste teruglevering', exportPoints, exportSelected, inferIntervalMinutes(exportPoints), timeZone, todayKey, tomorrowKey, 'export-table')
+    const importPeriods = cheapestEnabled && this._config.show_cheapest_table
+      ? groupSelectedPeriods(importPoints, importSelected, intervalMinutes)
+      : [];
+    const exportPeriods = exportBestEnabled && this._config.show_export_table
+      ? groupSelectedPeriods(exportPoints, exportSelected, inferIntervalMinutes(exportPoints))
+      : [];
+    const favorableTable = importPeriods.length || exportPeriods.length
+      ? this._periodTable(importPeriods, exportPeriods, timeZone, todayKey, tomorrowKey)
       : '';
 
     this._chart = {
@@ -595,7 +664,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <ha-card>
-        <div class="card-content">
+        <div class="card-content" style="--import-fill-color:${importFillColor};--export-fill-color:${exportFillColor}">
           <header class="header">${heading}${currentBlock}</header>
           ${legend}
           <div class="chart" tabindex="0" role="img" aria-label="Elektriciteitsprijzen per interval. Gebruik de pijltjestoetsen om prijzen te bekijken.">
@@ -616,7 +685,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
                 </linearGradient>
               </defs>
               ${selectionRects}${levelLines}${averageLine}
-              ${importAreaPath ? `<path d="${importAreaPath}" class="area" />` : ''}
+              ${importAreaPath ? `<path d="${importAreaPath}" class="area import-area" />` : ''}
+              ${exportAreaPath ? `<path d="${exportAreaPath}" class="area export-area" />` : ''}
               ${importPath ? `<path d="${importPath}" class="price-line import-line" style="stroke:${importAppearance.stroke};stroke-width:${importAppearance.width};stroke-dasharray:${importAppearance.dash};stroke-linecap:${importAppearance.cap}" />` : ''}
               ${exportPath ? `<path d="${exportPath}" class="price-line export-line" style="stroke:${exportAppearance.stroke};stroke-width:${exportAppearance.width};stroke-dasharray:${exportAppearance.dash};stroke-linecap:${exportAppearance.cap}" />` : ''}
               ${dayMarkers}${nowMarker}${hoverLine}
@@ -626,7 +696,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
             ${yLabels}${levelLabels}${averageLabel}${dayLabels}${nowLabel}${xLabels}
             <div class="tooltip" hidden></div>
           </div>
-          ${cheapestTable}${exportTable}
+          ${favorableTable}
           <div class="sr-only" aria-live="polite"></div>
         </div>
       </ha-card>
@@ -654,16 +724,22 @@ class DynamicEnergyPriceCard extends HTMLElement {
     </div>`;
   }
 
-  _periodTable(title, points, selected, intervalMinutes, timeZone, todayKey, tomorrowKey, className) {
-    const rows = groupSelectedPeriods(points, selected, intervalMinutes).map((period) => {
+  _periodTable(importPeriods, exportPeriods, timeZone, todayKey, tomorrowKey) {
+    const periods = [
+      ...importPeriods.map((period) => ({ ...period, type: 'import' })),
+      ...exportPeriods.map((period) => ({ ...period, type: 'export' })),
+    ].sort((left, right) => left.startTimestamp - right.startTimestamp || left.type.localeCompare(right.type));
+    const rows = periods.map((period) => {
+      const { type } = period;
+      const typeLabel = type === 'import' ? 'Afname' : 'Teruglevering';
       const hours = Math.floor(period.durationMinutes / 60);
       const minutes = period.durationMinutes % 60;
       const duration = hours && minutes ? `${hours} u ${minutes} min` : hours ? `${hours} uur` : `${minutes} min`;
       const day = period.dayKey === todayKey ? 'Vandaag' : period.dayKey === tomorrowKey ? 'Morgen' : period.dayKey;
-      return `<tr><td>${day}</td><td>${formatTime(period.startTimestamp, timeZone)}</td><td>${formatTime(period.endTimestamp, timeZone)}</td><td>${duration}</td></tr>`;
+      return `<tr><td>${day}</td><td><span class="period-type ${type}">${typeLabel}</span></td><td>${formatTime(period.startTimestamp, timeZone)}</td><td>${formatTime(period.endTimestamp, timeZone)}</td><td>${duration}</td></tr>`;
     }).join('');
-    return `<section class="price-table-wrap ${className}-wrap"><h3>${title}</h3>
-      <table class="cheapest-table ${className}"><thead><tr><th>Dag</th><th>Start</th><th>Einde</th><th>Duur</th></tr></thead><tbody>${rows}</tbody></table>
+    return `<section class="price-table-wrap"><h3>Gunstige momenten</h3>
+      <table class="cheapest-table favorable-table"><thead><tr><th>Dag</th><th>Moment</th><th>Start</th><th>Einde</th><th>Duur</th></tr></thead><tbody>${rows}</tbody></table>
     </section>`;
   }
 
@@ -688,7 +764,15 @@ class DynamicEnergyPriceCard extends HTMLElement {
 
   _seriesLegendItem(type, label) {
     const appearance = this._seriesAppearance(type);
-    return `<span><i class="swatch series-swatch ${appearance.style}" style="--series-color:${appearance.swatchColor};--series-width:${appearance.width}px"></i>${label}</span>`;
+    const hidden = this._hiddenSeries.has(type);
+    return `<button type="button" class="legend-series" data-series="${type}" aria-pressed="${!hidden}" title="${hidden ? 'Toon' : 'Verberg'} ${label.toLowerCase()}"><i class="swatch series-swatch ${appearance.style}" style="--series-color:${appearance.swatchColor};--series-width:${appearance.width}px"></i>${label}</button>`;
+  }
+
+  _toggleSeries(type) {
+    if (this._hiddenSeries.has(type)) this._hiddenSeries.delete(type);
+    else this._hiddenSeries.add(type);
+    this._hideTooltip();
+    this._render();
   }
 
   _priceClass(price, type) {
@@ -704,6 +788,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
   }
 
   _bindInteractions() {
+    this.shadowRoot.querySelectorAll('.legend-series').forEach((item) => {
+      item.addEventListener('click', () => {
+        const { series: type } = item.dataset;
+        this._toggleSeries(type);
+      });
+    });
     const chart = this.shadowRoot.querySelector('.chart');
     if (!chart) return;
     chart.addEventListener('pointermove', (event) => this._pointFromPointer(event));
@@ -764,7 +854,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const entries = [];
     const liveEntries = [];
     const showDot = (type, price, selected, hours, favorableLabel) => {
-      const dot = this.shadowRoot.querySelector(`[data-series="${type}"]`);
+      const dot = this.shadowRoot.querySelector(`.hover-dot[data-series="${type}"]`);
       if (!Number.isFinite(price)) {
         dot?.setAttribute('hidden', '');
         entries.push(`<span><b>${type === 'import' ? 'Afname' : 'Teruglevering'}</b> —</span>`);
@@ -801,8 +891,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
   _hideTooltip() {
     this.shadowRoot.querySelector('.tooltip')?.setAttribute('hidden', '');
     this.shadowRoot.querySelector('.hover-line')?.setAttribute('hidden', '');
-    this.shadowRoot.querySelector('[data-series="import"]')?.setAttribute('hidden', '');
-    this.shadowRoot.querySelector('[data-series="export"]')?.setAttribute('hidden', '');
+    this.shadowRoot.querySelector('.hover-dot[data-series="import"]')?.setAttribute('hidden', '');
+    this.shadowRoot.querySelector('.hover-dot[data-series="export"]')?.setAttribute('hidden', '');
   }
 
   _styles() {
@@ -851,6 +941,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .current-metric.export .current-window.active { color: var(--export-best); }
       .legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 12px 0 2px; color: var(--secondary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-medium); line-height: var(--line-height-tight); }
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
+      .legend-series { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 1px 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+      .legend-series[aria-pressed="false"] { opacity: 0.45; text-decoration: line-through; }
+      .legend-series:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; border-radius: 3px; }
       .swatch { width: 15px; height: 4px; border-radius: 4px; background: var(--divider-color); }
       .series-swatch { height: 0; border-radius: 0; border-top: var(--series-width, 3px) solid var(--series-color); background: none; }
       .series-swatch.dashed { border-top-style: dashed; }
@@ -870,7 +963,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .average-label { transform: translateY(-135%); color: var(--primary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); }
       .export-average-label { border-bottom: 1px dashed currentColor; }
       .day-divider { stroke: var(--primary-text-color); stroke-opacity: 0.28; stroke-dasharray: 4 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
-      .area { fill: url(#price-area); stroke: none; }
+      .area { stroke: none; opacity: 0.14; }
+      .import-area { fill: var(--import-fill-color); }
+      .export-area { fill: var(--export-fill-color); }
       .price-line { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
       .level-line { stroke-opacity: 0.55; stroke-dasharray: 5 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .cheap-level[data-level-class="import-level"] { stroke: var(--cheap); }
@@ -907,6 +1002,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .cheapest-table th { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); text-transform: uppercase; letter-spacing: 0.04em; }
       .cheapest-table tbody tr { border-top: 1px solid var(--divider-color); }
       .cheapest-table td:last-child, .cheapest-table th:last-child { text-align: right; }
+      .period-type { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 999px; font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); }
+      .period-type.import { color: var(--cheap); background: color-mix(in srgb, var(--cheap) 13%, transparent); }
+      .period-type.export { color: var(--export-best); background: var(--export-best-fill); }
       .state { display: grid; gap: 5px; padding: 20px; }
       .state span { color: var(--secondary-text-color); }
       .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
