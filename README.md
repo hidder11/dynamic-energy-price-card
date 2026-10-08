@@ -12,6 +12,7 @@ Existing configurations remain import-only by default. Export prices come from a
 - Clearly separated export dashes with matching graph and legend patterns
 - Independent line style (`solid`, `dashed`, or `dotted`), thickness, and optional fixed RGB color for import and export
 - Optional per-series area fill with an independent RGB color and configurable vertical fade
+- Optional semantic RGB price palette and independent favorable import/export period colors; leaving them empty preserves the original appearance
 - Clickable legend items temporarily show or hide each graph series
 - Data status appears only when price intervals are missing or tomorrow's published data is incomplete
 - Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
@@ -30,6 +31,45 @@ Existing configurations remain import-only by default. Export prices come from a
 - Native card sizing in Home Assistant Sections views
 - Responsive current-price metrics and chart from 320 px card width
 - No external runtime dependencies
+
+## Examples
+
+These are real browser captures of the built card with Tibber tariff data for October 8, 2026, rendered on a standalone Home Assistant-style card surface. All examples show import only, a hidden title, and one contiguous four-hour favorable period. The table fits without scrolling. These example settings do not change an existing dashboard configuration.
+
+### Original palette — dark desktop
+
+The original automatic price palette and green favorable-period highlight:
+
+![Original colors and one continuous favorable period on dark desktop](docs/images/revised-default-dark-desktop.png)
+
+### Original palette — compact light mobile
+
+The same compact summary, chart and favorable-period table on mobile:
+
+<img src="docs/images/revised-default-light-mobile.png" alt="Original palette and compact import summary on light mobile" width="390">
+
+### Custom price colors and independent period highlights
+
+Blue and rose price colors with an independent purple favorable-period highlight. Changing these colors does not change the layout or selected period.
+
+![Custom colors with an independent purple period highlight on dark desktop](docs/images/revised-custom-dark-desktop.png)
+
+<img src="docs/images/revised-custom-light-mobile.png" alt="Custom price and favorable-period colors on light mobile" width="390">
+
+Example settings:
+
+```yaml
+show_title: false
+cheapest_hours: 4
+import_selection_mode: contiguous
+show_cheapest_table: true
+cheap_color: [130, 90, 240]
+normal_color: [50, 140, 210]
+expensive_color: [225, 90, 125]
+import_favorable_color: [140, 100, 230]
+```
+
+Export-period colors can be customized independently with `export_favorable_color`. Leave any color empty to retain its original default.
 
 ## Data requirements
 
@@ -148,6 +188,13 @@ show_export_table: true
 | `export_fill_fade` | No | `true` | Fades the export fill towards the bottom of the chart when enabled. |
 | `export_selection_mode` | No | `individual` | `individual`, `contiguous`, or `minimum_blocks`. |
 | `export_minimum_duration` | No | `30` | Minimum block duration in minutes for `minimum_blocks`. |
+| `cheap_color` | No | Theme success color | Optional RGB override for favorable price semantics: low import / high export. |
+| `normal_color` | No | `#f2a93b` | Optional RGB override for normal prices. |
+| `expensive_color` | No | Theme error color | Optional RGB override for unfavorable price semantics: high import / low export. |
+| `zero_color` | No | `#18a999` | Optional RGB override for the zero-price anchor in the import gradient. |
+| `negative_color` | No | `#168aad` | Optional RGB override for negative import prices and markers. |
+| `import_favorable_color` | No | Theme success color | Independent favorable import bands, legend, active-period badges, and table labels. Not linked to `cheap_color`. |
+| `export_favorable_color` | No | `#1976d2` | Independent favorable export bands, legend, active-period badges, and table labels. Also supplies the automatic export fill color unless `export_fill_color` is set. |
 | `cheap_price` | No | `0.15` | Low threshold in EUR/kWh. Low import is favorable; low export is unfavorable. |
 | `normal_price` | No | `0.25` | Middle gradient anchor in EUR/kWh. |
 | `expensive_price` | No | `0.40` | High threshold in EUR/kWh. High import is unfavorable; high export is favorable. |
@@ -163,7 +210,9 @@ Thresholds must be ordered as:
 cheap_price < normal_price < expensive_price
 ```
 
-The visual editor groups configuration under **General**, **Import**, and **Export**. Price thresholds are in **General**. Line appearance settings are stored as flat YAML keys, so existing configurations remain compatible.
+The visual editor groups configuration under **General**, **Import**, and **Export**. Price thresholds and the expandable **Price colors** (`Prijskleuren`) subgroup are in **General**. Independent period colors are in each tariff's **Favorable periods** subgroup. All settings are stored as flat YAML keys, so existing configurations remain compatible.
+
+Colors are optional RGB arrays with three channels from 0 to 255. Remove a key or clear its color selector to restore the original automatic/theme-derived default; empty arrays and null values also fall back safely. `[0, 0, 0]` is valid black. Changing a price color does not change the independent favorable-period highlights. Price colors are shared by gradients, current-price values, reference lines, and hover markers, with the existing reversed export meaning. `zero_color` changes the zero anchor in the import gradient without changing the existing price classification. Fixed `import_line_color` / `export_line_color` still override the line and marker colors; explicit fill colors remain independent. No default palette, opacity, spacing, or layout changes are required.
 
 An export source is required only when the selected graph mode, current-price mode, or export-period selection uses export data. The card displays a configuration error with recovery guidance when such a source is missing.
 

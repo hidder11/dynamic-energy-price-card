@@ -29,10 +29,28 @@
   <main><dynamic-energy-price-card id="card"></dynamic-energy-price-card></main>
   <script type="module">
     import '../dist/dynamic-energy-price-card.js';
+    import './color-checks.js';
+
+    // Minimal Home Assistant card surface for the standalone browser fixture.
+    if (!customElements.get('ha-card')) customElements.define('ha-card', class extends HTMLElement {
+      connectedCallback() {
+        this.style.display = 'block';
+        this.style.background = 'var(--card-background-color)';
+        this.style.borderRadius = 'var(--ha-card-border-radius)';
+        this.style.boxShadow = '0 8px 28px rgba(0,0,0,.15)';
+      }
+    });
 
     const importData = [];
     const exportData = [];
-    for (const day of ['2026-10-07', '2026-10-08']) {
+    // Generate demonstration data for the viewer's current Amsterdam day.
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const tomorrow = new Date(`${today}T12:00:00Z`);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const days = [today, tomorrow.toISOString().slice(0, 10)];
+    for (const day of days) {
+      const offset = new Intl.DateTimeFormat('en', { timeZone: 'Europe/Amsterdam', timeZoneName: 'longOffset' })
+        .formatToParts(new Date(`${day}T12:00:00Z`)).find(part => part.type === 'timeZoneName').value.replace('GMT', '');
       for (let index = 0; index < 96; index += 1) {
         const hour = Math.floor(index / 4);
         const minute = (index % 4) * 15;
@@ -40,13 +58,13 @@
         const eveningPeak = Math.exp(-Math.pow(hour - 19, 2) / 5) * 0.28;
         const middayDip = Math.exp(-Math.pow(hour - 13, 2) / 6) * 0.12;
         const variation = Math.sin(index * 1.7) * 0.013;
-        const dayOffset = day.endsWith('08') ? 0.015 : 0;
+        const dayOffset = day === days[1] ? 0.015 : 0;
         const importPrice = 0.31 + morningPeak + eveningPeak - middayDip + variation + dayOffset;
         const exportPrice = 0.08 + middayDip * 1.25 - morningPeak * 0.25 - eveningPeak * 0.15 + variation / 2;
-        const start_time = `${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+02:00`;
+        const start_time = `${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${offset}`;
         importData.push({ start_time, price_per_kwh: Number(importPrice.toFixed(4)) });
         // Deliberately omit one export point to exercise the safe missing-value tooltip.
-        if (!(day.endsWith('07') && hour === 11 && minute === 30)) {
+        if (!(day === days[0] && hour === 11 && minute === 30)) {
           exportData.push({ start_time, price_per_kwh: Number(exportPrice.toFixed(4)) });
         }
       }
@@ -101,6 +119,31 @@
           attributes: { data: exportData },
         },
       },
+    };
+
+    // Console-callable QA helpers use runtime defaults, not the showcase overrides above.
+    window.qaBase = {
+      entity: 'sensor.dynamic_import_prices', export_entity: 'sensor.dynamic_export_prices',
+      title: 'Dynamic energy prices', graph_mode: 'both', current_price_mode: 'both',
+      cheapest_hours: 4, export_best_hours: 4, show_cheapest_table: true,
+      show_export_table: true, tomorrow_after: 0,
+    };
+    window.qaSet = (extra = {}) => {
+      card.setConfig({ ...window.qaBase, ...extra });
+      card.hass = card._hass;
+    };
+    window.qaTheme = (light) => {
+      const colors = light ? {
+        '--primary-text-color': '#212121', '--secondary-text-color': '#666666',
+        '--card-background-color': '#ffffff', '--secondary-background-color': '#f1f3f5',
+        '--divider-color': 'rgba(0,0,0,.12)', '--success-color': '#19a974', '--error-color': '#e45c4f',
+      } : {
+        '--primary-text-color': '#e8eef3', '--secondary-text-color': '#9eabb5',
+        '--card-background-color': '#17212b', '--secondary-background-color': '#202d38',
+        '--divider-color': 'rgba(255,255,255,.12)', '--success-color': '#34c995', '--error-color': '#ff715f',
+      };
+      for (const [key, value] of Object.entries(colors)) document.documentElement.style.setProperty(key, value);
+      document.documentElement.style.background = light ? '#eef1f4' : '#0f171f';
     };
   </script>
 </body>

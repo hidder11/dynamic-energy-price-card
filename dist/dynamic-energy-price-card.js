@@ -460,6 +460,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
       export_minimum_duration: 'Minimale blokduur',
       export_favorable_settings: 'Gunstige perioden',
       export_appearance_settings: 'Lijn en vulling',
+      price_color_settings: 'Prijskleuren',
+      cheap_color: 'Goedkope prijs',
+      normal_color: 'Normale prijs',
+      expensive_color: 'Dure prijs',
+      zero_color: 'Prijs rond nul',
+      negative_color: 'Negatieve prijs',
+      import_favorable_color: 'Kleur gunstige afnameperioden',
+      export_favorable_color: 'Kleur gunstige terugleverperioden',
       cheap_price: 'Goedkoop',
       normal_price: 'Normaal',
       expensive_price: 'Duur',
@@ -510,6 +518,16 @@ class DynamicEnergyPriceCard extends HTMLElement {
             { name: 'cheap_price', default: DEFAULT_CONFIG.cheap_price, required: true, selector: thresholdSelector },
             { name: 'normal_price', default: DEFAULT_CONFIG.normal_price, required: true, selector: thresholdSelector },
             { name: 'expensive_price', default: DEFAULT_CONFIG.expensive_price, required: true, selector: thresholdSelector },
+            {
+              type: 'expandable', name: 'price_color_settings', title: 'Prijskleuren', flatten: true,
+              schema: [
+                { name: 'cheap_color', selector: lineColorSelector },
+                { name: 'normal_color', selector: lineColorSelector },
+                { name: 'expensive_color', selector: lineColorSelector },
+                { name: 'zero_color', selector: lineColorSelector },
+                { name: 'negative_color', selector: lineColorSelector },
+              ],
+            },
           ],
         },
         {
@@ -530,6 +548,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
                 { name: 'import_selection_mode', default: DEFAULT_CONFIG.import_selection_mode, selector: selectionModeSelector },
                 { name: 'import_minimum_duration', default: DEFAULT_CONFIG.import_minimum_duration, selector: minimumDurationSelector },
                 { name: 'show_cheapest_table', default: DEFAULT_CONFIG.show_cheapest_table, selector: { boolean: {} } },
+                { name: 'import_favorable_color', selector: lineColorSelector },
               ],
             },
             {
@@ -563,6 +582,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
                 { name: 'export_selection_mode', default: DEFAULT_CONFIG.export_selection_mode, selector: selectionModeSelector },
                 { name: 'export_minimum_duration', default: DEFAULT_CONFIG.export_minimum_duration, selector: minimumDurationSelector },
                 { name: 'show_export_table', default: DEFAULT_CONFIG.show_export_table, selector: { boolean: {} } },
+                { name: 'export_favorable_color', selector: lineColorSelector },
               ],
             },
             {
@@ -606,6 +626,13 @@ class DynamicEnergyPriceCard extends HTMLElement {
         export_fill_fade: 'Laat de vulling geleidelijk transparant worden naar de onderkant.',
         export_selection_mode: 'Kies losse kwartieren, één blok of meerdere blokken.',
         export_minimum_duration: 'Alleen gebruikt bij blokken met minimale duur.',
+        cheap_color: 'Optioneel. Leeg behoudt de groene themakleur voor gunstige prijzen.',
+        normal_color: 'Optioneel. Leeg behoudt de standaard oranje prijskleur.',
+        expensive_color: 'Optioneel. Leeg behoudt de rode themakleur voor ongunstige prijzen.',
+        zero_color: 'Optioneel. Leeg behoudt de standaard kleur rond nul in de afnamegradiënt.',
+        negative_color: 'Optioneel. Leeg behoudt de standaard negatieve afnameprijskleur.',
+        import_favorable_color: 'Optioneel, onafhankelijk van prijskleuren. Leeg behoudt de groene themakleur voor perioden, labels en tabel.',
+        export_favorable_color: 'Optioneel, onafhankelijk van prijskleuren. Leeg behoudt blauw voor perioden, labels en tabel.',
         cheap_price: 'Onder deze prijs is afname goedkoop; voor teruglevering is laag juist ongunstig.',
         normal_price: 'Middelste prijsgrens voor beide tarieven.',
         expensive_price: 'Boven deze prijs is afname duur en teruglevering gunstig.',
@@ -1252,6 +1279,18 @@ class DynamicEnergyPriceCard extends HTMLElement {
   }
 
   _styles() {
+    const colorOverrides = [
+      ['cheap_color', '--cheap'],
+      ['normal_color', '--normal'],
+      ['expensive_color', '--expensive'],
+      ['zero_color', '--zero-color'],
+      ['negative_color', '--negative-color'],
+      ['import_favorable_color', '--import-best'],
+      ['export_favorable_color', '--export-best'],
+    ].map(([key, token]) => {
+      const color = rgbColorToCss(this._config?.[key]);
+      return color ? `${token}: ${color};` : '';
+    }).join('\n');
     return `
       :host {
         --cheap: var(--success-color, #19a974);
@@ -1259,8 +1298,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
         --expensive: var(--error-color, #e45c4f);
         --zero-color: #18a999;
         --negative-color: #168aad;
+        --import-best: var(--success-color, #19a974);
         --export-best: #1976d2;
-        --cheapest-fill: color-mix(in srgb, var(--cheap) 13%, transparent);
+        ${colorOverrides}
+        --cheapest-fill: color-mix(in srgb, var(--import-best) 13%, transparent);
         --export-best-fill: color-mix(in srgb, var(--export-best) 18%, transparent);
         --font-size-meta: 10px;
         --font-size-label: 12px;
@@ -1290,7 +1331,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .compact-current strong.normal { color: var(--normal); }
       .compact-current strong.expensive { color: var(--expensive); }
       .compact-current strong.unavailable { color: var(--secondary-text-color); }
-      .compact-current em { padding: 2px 5px; border-radius: 999px; color: var(--cheap); background: var(--cheapest-fill); font-size: var(--font-size-meta); font-style: normal; }
+      .compact-current em { padding: 2px 5px; border-radius: 999px; color: var(--import-best); background: var(--cheapest-fill); font-size: var(--font-size-meta); font-style: normal; }
       .compact-context { overflow: hidden; color: var(--secondary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-medium); line-height: var(--line-height-tight); text-overflow: ellipsis; white-space: nowrap; }
       .current-block { display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; flex: none; margin-left: auto; }
       .current-metric { display: grid; justify-items: end; gap: 3px; min-width: 0; }
@@ -1304,7 +1345,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .current.expensive strong { color: var(--expensive); }
       .current.unavailable strong { color: var(--secondary-text-color); }
       .current-window { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
-      .current-window.active { color: var(--cheap); }
+      .current-window.active { color: var(--import-best); }
       .current-metric.export .current-window.active { color: var(--export-best); }
       .legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 12px 0 2px; color: var(--secondary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-medium); line-height: var(--line-height-tight); }
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -1318,7 +1359,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .series-swatch { height: 0; border-radius: 0; border-top: var(--series-width, 3px) solid var(--series-color); background: none; }
       .series-swatch.dashed { border-top-style: dashed; }
       .series-swatch.dotted { border-top-style: dotted; }
-      .swatch.selection, .swatch.export-selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--cheap) 45%, transparent); }
+      .swatch.selection, .swatch.export-selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--import-best) 45%, transparent); }
       .swatch.export-selection { background: var(--export-best-fill); border-color: color-mix(in srgb, var(--export-best) 55%, transparent); }
       .chart { position: relative; flex: 1 1 300px; min-height: 120px; outline: none; touch-action: pan-y; }
       .chart:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); border-radius: 8px; }
@@ -1334,7 +1375,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .export-average-label { border-left: 2px dashed currentColor; }
       .day-divider { stroke: var(--primary-text-color); stroke-opacity: 0.28; stroke-dasharray: 4 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .selection-band { pointer-events: none; }
-      .import-selection-band { fill: var(--cheap); fill-opacity: 0.09; }
+      .import-selection-band { fill: var(--import-best); fill-opacity: 0.09; }
       .export-selection-band { fill: var(--export-best); fill-opacity: 0.10; }
       .area { stroke: none; opacity: 0.14; }
       .import-area { fill: var(--import-fill-color); }
@@ -1384,7 +1425,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .cheapest-table tbody tr { border-top: 1px solid var(--divider-color); }
       .cheapest-table td:last-child, .cheapest-table th:last-child { text-align: right; }
       .period-type { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 999px; font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); }
-      .period-type.import { color: var(--cheap); background: color-mix(in srgb, var(--cheap) 13%, transparent); }
+      .period-type.import { color: var(--import-best); background: var(--cheapest-fill); }
       .period-type.export { color: var(--export-best); background: var(--export-best-fill); }
       .state { display: grid; gap: 5px; padding: 20px; }
       .state span { color: var(--secondary-text-color); }

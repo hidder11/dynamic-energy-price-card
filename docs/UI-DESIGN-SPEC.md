@@ -62,6 +62,9 @@ Nederlandse labels, toetsenbordfocus op de grafiek en pijltjestoetsen voor vorig
 - Teruglevering onder nul tekenen alleen vanwege de energierichting: afgewezen; beide tarieven gebruiken hun werkelijke prijswaarde.
 - Mobiele periodenkaarten in plaats van de tabel: afgewezen; de bestaande tabel is informatie-efficiënter en houdt de card compact.
 
+## Optional semantic color customization (approved)
+Preserve all existing default colors, opacity, layout and interactions. Optional flat RGB keys `cheap_color`, `normal_color`, `expensive_color`, `zero_color`, `negative_color` override the shared price semantics. General settings contain a named, flattened native expandable `Prijskleuren` subgroup. Favorable-period subgroups expose independent `import_favorable_color` and `export_favorable_color`; bands, favorable badges, legend and table labels use these independently of price classification. Empty values restore automatic/theme-derived defaults, including import success green and explicit export blue. Fixed line and area-fill settings retain precedence. Black RGB and false/zero settings remain valid. No release or live install is in scope.
+
 ## Open decisions
 Geen blokkerende ontwerpbeslissingen.
 
