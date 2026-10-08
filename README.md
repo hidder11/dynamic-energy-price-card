@@ -1,46 +1,50 @@
 # Dynamic Energy Price Card
 
-A standalone Home Assistant dashboard card for comparing dynamic electricity import and export tariffs on one timeline.
+**See electricity prices at a glance—and find the best times to use or export energy.**
 
-Existing configurations remain import-only by default. Export prices come from a second sensor and may be adjusted with a signed offset.
+A compact Home Assistant dashboard card for dynamic electricity tariffs. View the current price, follow today's price curve, and highlight favorable periods. Add a second sensor to compare import and export prices on the same chart.
 
-## Features
+![Dynamic Energy Price Card with current price, chart and favorable-period table](docs/images/revised-default-dark-desktop.png)
 
-- Import, export, or dual-series graph modes on one shared time axis
-- Independent current-price mode: import, export, both, or hidden
-- Solid import line and dashed export line with explicit legend labels
-- Clearly separated export dashes with matching graph and legend patterns
-- Independent line style (`solid`, `dashed`, or `dotted`), thickness, and optional fixed RGB color for import and export
-- Optional per-series area fill with an independent RGB color and configurable vertical fade
-- Optional semantic RGB price palette and independent favorable import/export period colors; leaving them empty preserves the original appearance
-- Clickable legend items temporarily show or hide each graph series
-- Data status appears only when price intervals are missing or tomorrow's published data is incomplete
-- Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
-- Real tariff values are preserved; export prices are not sign-inverted
-- Export source from a dedicated sensor; `export_price_offset` adjusts that export series
-- Today's prices and optional tomorrow prices after a configurable local hour
-- Current interval prices and a vertical **Now** marker
-- Hover, touch, and keyboard tooltips for every visible series, positioned beside rather than over the selected price point
-- Optional per-series average lines with unambiguous labels
-- Lowest import periods and highest export periods selected independently per day as loose intervals, one contiguous block, or blocks with a configurable minimum duration
-- Adjacent favorable intervals merge into subtle full-height background bands
-- Best export periods use a consistent blue highlight in light and dark themes
-- One optional table for favorable import and export periods, with explicit colored type labels
-- Native Home Assistant visual editor with expandable **General**, **Import**, and **Export** groups
-- Progressive native editor subgroups for favorable periods and line/fill appearance
-- Native card sizing in Home Assistant Sections views
-- Responsive current-price metrics and chart from 320 px card width
-- No external runtime dependencies
+## What it can do
+
+- **Plan energy use:** highlight the cheapest import periods and highest-paying export periods.
+- **Choose useful time blocks:** select individual intervals, one continuous block, or multiple blocks with a minimum duration.
+- **See today and tomorrow:** show available upcoming prices, the current price, and a clear Now marker.
+- **Inspect any interval:** use hover, touch, or keyboard controls to read prices.
+- **Make it your own:** customize price colors, period highlights, line styles, and optional fills—or keep the original appearance.
+- **Keep your dashboard compact:** use a responsive chart, optional period table, and Home Assistant's native visual editor and Sections sizing.
+
+Works with hourly or quarter-hour price intervals in the supported sensor format. Import-only is the default; export is optional. The card displays data from your sensors—it does not fetch tariffs or control appliances.
+
+## Quick start
+
+### 1. Install with HACS
+
+1. Open **HACS** in Home Assistant.
+2. Open **Custom repositories** from the menu.
+3. Add `https://github.com/hidder11/dynamic-energy-price-card` with category **Dashboard**.
+4. Install **Dynamic Energy Price Card**, then refresh your browser.
+
+### 2. Add a card
+
+Use Home Assistant's visual editor, or start with this YAML:
+
+```yaml
+type: custom:dynamic-energy-price-card
+entity: sensor.tibber_prijzen
+cheapest_hours: 4
+import_selection_mode: contiguous
+show_cheapest_table: true
+```
+
+Replace `entity` with your price sensor. This example highlights the cheapest continuous four-hour block per day and lists it below the chart. Omit the last three settings if you only want the price graph.
+
+**Sensor requirement:** the sensor must provide a `data` attribute with timestamped prices in EUR/kWh. A sensor with only a current-price state is not enough. See **Sensor data** below for the exact format.
 
 ## Examples
 
-These are real browser captures of the built card with Tibber tariff data for October 8, 2026, rendered on a standalone Home Assistant-style card surface. All examples show import only, a hidden title, and one contiguous four-hour favorable period. The table fits without scrolling. These example settings do not change an existing dashboard configuration.
-
-### Original palette — dark desktop
-
-The original automatic price palette and green favorable-period highlight:
-
-![Original colors and one continuous favorable period on dark desktop](docs/images/revised-default-dark-desktop.png)
+The opening preview and examples below use real Tibber tariff data from October 8, 2026. They were captured from the built card on a standalone Home Assistant-style surface, not a live dashboard. Each uses import only, a hidden title, and one continuous four-hour selection. Default and custom-color examples use the same data and layout.
 
 ### Original palette — compact light mobile
 
@@ -71,9 +75,9 @@ import_favorable_color: [140, 100, 230]
 
 Export-period colors can be customized independently with `export_favorable_color`. Leave any color empty to retain its original default.
 
-## Data requirements
+## Sensor data
 
-The required `entity` is the import source. Its `data` attribute must be an array whose entries contain:
+Use an import sensor whose `data` attribute contains an array of intervals. Each interval must include an ISO timestamp with a timezone offset and a price in EUR/kWh:
 
 ```yaml
 start_time: "2026-10-07T14:00:00+02:00"
@@ -88,21 +92,13 @@ export price = export entity price + export_price_offset
 
 Offsets may be negative. The import entity is never used as the base for an export offset.
 
-## Installation with HACS
+## Configuration examples
 
-1. Open **HACS** in Home Assistant.
-2. Open **Dashboard**.
-3. Select the three-dot menu and **Custom repositories**.
-4. Add `https://github.com/hidder11/dynamic-energy-price-card` as a **Dashboard** repository.
-5. Install **Dynamic Energy Price Card** and refresh the browser.
-
-## Add the card
-
-Use the Home Assistant visual editor, or add YAML manually.
+Most settings can be changed in Home Assistant's native visual editor. The examples below show the equivalent flat YAML keys.
 
 ### Import-only configuration
 
-This preserves the card's original appearance and behavior:
+An import-only setup with price guides, fading fill, and a four-hour selection in blocks of at least 30 minutes:
 
 ```yaml
 type: custom:dynamic-energy-price-card
@@ -158,7 +154,7 @@ export_best_hours: 3
 show_export_table: true
 ```
 
-## Configuration
+## Settings reference
 
 | Option | Required | Default | Description |
 |---|---:|---:|---|
@@ -212,7 +208,15 @@ cheap_price < normal_price < expensive_price
 
 The visual editor groups configuration under **General**, **Import**, and **Export**. Price thresholds and the expandable **Price colors** (`Prijskleuren`) subgroup are in **General**. Independent period colors are in each tariff's **Favorable periods** subgroup. All settings are stored as flat YAML keys, so existing configurations remain compatible.
 
-Colors are optional RGB arrays with three channels from 0 to 255. Remove a key or clear its color selector to restore the original automatic/theme-derived default; empty arrays and null values also fall back safely. `[0, 0, 0]` is valid black. Changing a price color does not change the independent favorable-period highlights. Price colors are shared by gradients, current-price values, reference lines, and hover markers, with the existing reversed export meaning. `zero_color` changes the zero anchor in the import gradient without changing the existing price classification. Fixed `import_line_color` / `export_line_color` still override the line and marker colors; explicit fill colors remain independent. No default palette, opacity, spacing, or layout changes are required.
+### Colors and overrides
+
+- Colors are RGB arrays with three channels from `0` to `255`; `[0, 0, 0]` is valid black.
+- Remove a key or clear its selector to restore its default. Empty arrays and `null` also reset safely.
+- Price colors and favorable-period colors are independent: changing one does not recolor the other.
+- Price colors apply to gradients, current-price values, reference lines, and hover markers. Export keeps the reversed meaning: high prices are favorable.
+- `zero_color` controls the import gradient's zero-price anchor, not price classification.
+- Fixed `import_line_color` and `export_line_color` override automatic line and marker colors. Explicit fill colors remain independent.
+- Leaving the new colors unset preserves the original palette, opacity, spacing, and layout.
 
 An export source is required only when the selected graph mode, current-price mode, or export-period selection uses export data. The card displays a configuration error with recovery guidance when such a source is missing.
 
