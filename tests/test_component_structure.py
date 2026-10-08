@@ -199,27 +199,56 @@ class CardSourceTests(unittest.TestCase):
         self.assertNotIn("this._periodTable('Goedkoopste afname'", card)
         self.assertNotIn("this._periodTable('Beste teruglevering'", card)
 
-    def test_favorable_intervals_render_as_merged_top_and_bottom_rails(self):
+    def test_favorable_intervals_render_as_subtle_full_height_bands(self):
         card = CARD.read_text(encoding="utf-8")
-        self.assertIn('const selectionRailRects =', card)
+        self.assertIn('const selectionBandRects =', card)
         self.assertIn("groupSelectedPeriods(importPoints, importSelected, intervalMinutes)", card)
         self.assertIn("groupSelectedPeriods(exportPoints, exportSelected, exportIntervalMinutes)", card)
-        self.assertIn("'import-selection-rail'", card)
-        self.assertIn("'export-selection-rail'", card)
-        self.assertIn('const importRailY = PLOT.top + plotHeight - railHeight;', card)
-        self.assertIn('const exportRailY = PLOT.top;', card)
+        self.assertIn("'import-selection-band'", card)
+        self.assertIn("'export-selection-band'", card)
+        self.assertIn('height="${plotHeight}"', card)
+        self.assertIn('class="selection-band ${className}"', card)
+        self.assertNotIn('selection-rail', card)
         self.assertNotIn('class="cheapest-slot"', card)
         self.assertNotIn('class="export-best-slot"', card)
 
-    def test_compact_status_and_mobile_header_preserve_the_table(self):
+    def test_single_import_uses_one_compact_summary_row(self):
         card = CARD.read_text(encoding="utf-8")
-        self.assertIn('class="data-status', card)
-        self.assertIn('relativeAgeLabel(', card)
+        self.assertIn('const useCompactSummary =', card)
+        self.assertIn('class="compact-summary"', card)
+        self.assertIn('class="compact-current legend-series"', card)
+        self.assertIn("this._compactCurrentMetric('Afname'", card)
+        self.assertIn('${label} <span>nu</span>', card)
+        self.assertIn('class="compact-context"', card)
+        self.assertIn('.compact-summary {', card)
+        self.assertIn('grid-template-columns: minmax(0, 1fr) auto;', card)
+
+    def test_status_only_appears_for_incomplete_price_data(self):
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('const statusParts = [];', card)
         self.assertIn('countMissingIntervals(', card)
-        self.assertIn('.header { display: grid;', card)
-        self.assertIn('.current-block { grid-column: 1 / -1;', card)
+        self.assertIn("if (missingTotal) statusParts.push", card)
+        self.assertIn("if (showTomorrow && !tomorrowPoints.length)", card)
+        self.assertIn('const dataStatus = statusParts.length', card)
+        self.assertNotIn('relativeAgeLabel(', card)
+        self.assertNotIn('Bron ${sourceAge}', card)
+
+    def test_compact_redesign_preserves_the_table(self):
+        card = CARD.read_text(encoding="utf-8")
         self.assertIn('<table class="cheapest-table favorable-table"', card)
         self.assertNotIn('mobile-period-card', card)
+
+    def test_tooltip_is_offset_away_from_the_selected_price_point(self):
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('const tooltipWidth = tooltip.offsetWidth;', card)
+        self.assertIn('const canPlaceRight = anchorX + gap + tooltipWidth <= chartWidth - edge;', card)
+        self.assertIn("tooltip.dataset.horizontal = canPlaceRight ? 'right' : canPlaceLeft ? 'left' : 'center';", card)
+        self.assertIn("tooltip.dataset.vertical = canPlaceBelow ? 'below' : 'above';", card)
+        self.assertIn('.tooltip[data-horizontal="right"][data-vertical="below"]', card)
+        self.assertIn('.tooltip[data-horizontal="left"][data-vertical="above"]', card)
+        self.assertIn('.tooltip[data-horizontal="center"][data-vertical="above"]', card)
+        self.assertIn('.tooltip span b { min-width: 0;', card)
+        self.assertNotIn("tooltip.style.top = '48%';", card)
 
     def test_native_editor_uses_flat_expandable_subgroups(self):
         card = CARD.read_text(encoding="utf-8")

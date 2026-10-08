@@ -828,17 +828,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
 
     const importSelectedPeriods = groupSelectedPeriods(importPoints, importSelected, intervalMinutes);
     const exportSelectedPeriods = groupSelectedPeriods(exportPoints, exportSelected, exportIntervalMinutes);
-    const railHeight = 7;
-    const importRailY = PLOT.top + plotHeight - railHeight;
-    const exportRailY = PLOT.top;
-    const railRects = (periods, y, className) => periods.map((period) => {
+    const bandRects = (periods, className) => periods.map((period) => {
       const x = xFor(period.startTimestamp);
       const width = Math.max(2, xFor(period.endTimestamp) - x);
-      return `<rect x="${x.toFixed(2)}" y="${y}" width="${width.toFixed(2)}" height="${railHeight}" rx="3.5" class="selection-rail ${className}" />`;
+      return `<rect x="${x.toFixed(2)}" y="${PLOT.top}" width="${width.toFixed(2)}" height="${plotHeight}" class="selection-band ${className}" />`;
     }).join('');
-    const selectionRailRects = [
-      graphShowsImport && cheapestEnabled ? railRects(importSelectedPeriods, importRailY, 'import-selection-rail') : '',
-      graphShowsExport && exportBestEnabled ? railRects(exportSelectedPeriods, exportRailY, 'export-selection-rail') : '',
+    const selectionBandRects = [
+      graphShowsImport && cheapestEnabled ? bandRects(importSelectedPeriods, 'import-selection-band') : '',
+      graphShowsExport && exportBestEnabled ? bandRects(exportSelectedPeriods, 'export-selection-band') : '',
     ].join('');
 
     const offsetForPrice = (price) => Math.max(0, Math.min(100, ((yFor(price) - PLOT.top) / plotHeight) * 100));
@@ -922,42 +919,46 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const tomorrowPoints = groups.get(tomorrowKey) || [];
     const showTomorrow = localHour(now, timeZone) >= Number(this._config.tomorrow_after);
     const tomorrowMinutes = tomorrowPoints.length * intervalMinutes;
-    let availability = `Morgen vanaf ${String(this._config.tomorrow_after).padStart(2, '0')}:00`;
-    if (showTomorrow && tomorrowPoints.length) availability = tomorrowMinutes >= 24 * 60 ? 'Morgen compleet' : 'Morgen deels bekend';
-    else if (showTomorrow) availability = 'Morgen nog niet bekend';
-    const sourceTimestamps = [importState.last_updated, exportState?.last_updated]
-      .filter(Boolean)
-      .map((value) => new Date(value).getTime())
-      .filter(Number.isFinite);
-    const oldestSourceUpdate = sourceTimestamps.length ? Math.min(...sourceTimestamps) : undefined;
-    const sourceAge = relativeAgeLabel(oldestSourceUpdate, now);
-    const sourceAgeMinutes = oldestSourceUpdate === undefined ? Infinity : (now.getTime() - oldestSourceUpdate) / 60000;
     const missingImport = countMissingIntervals(importPoints, intervalMinutes);
     const missingExport = exportPoints.length ? countMissingIntervals(exportPoints, exportIntervalMinutes) : 0;
     const missingTotal = missingImport + missingExport;
-    const statusParts = [`Bron ${sourceAge}`, availability];
-    if (missingTotal) statusParts.push(`${missingTotal} ${missingTotal === 1 ? 'interval' : 'intervallen'} ontbreekt`);
-    const statusWarning = sourceAgeMinutes > 60 || missingTotal > 0 || (showTomorrow && tomorrowMinutes < 24 * 60);
-    const dataStatus = `<div class="data-status${statusWarning ? ' warning' : ''}">${statusParts.map((part) => `<span>${escapeHtml(part)}</span>`).join('<i aria-hidden="true">·</i>')}</div>`;
+    const statusParts = [];
+    if (missingTotal) statusParts.push(`${missingTotal} ${missingTotal === 1 ? 'prijsinterval ontbreekt' : 'prijsintervallen ontbreken'}`);
+    if (showTomorrow && !tomorrowPoints.length) statusParts.push('Morgenprijzen ontbreken');
+    else if (showTomorrow && tomorrowMinutes < 24 * 60) statusParts.push('Morgenprijzen zijn onvolledig');
+    const dataStatus = statusParts.length
+      ? `<div class="data-status warning">${statusParts.map((part) => `<span>${escapeHtml(part)}</span>`).join('<i aria-hidden="true">·</i>')}</div>`
+      : '';
 
     const currentImport = findCurrentPoint(importPoints, now);
     const currentExport = findCurrentPoint(exportPoints, now);
     const currentCards = [];
     if (currentShowsImport) currentCards.push(this._currentMetric('Afname', currentImport, 'import', importSelected, cheapestEnabled));
     if (currentShowsExport) currentCards.push(this._currentMetric('Teruglevering', currentExport, 'export', exportSelected, exportBestEnabled));
-    const currentBlock = currentCards.length ? `<div class="current-block">${currentCards.join('')}</div>` : '';
 
     const showTitle = this._config.show_title !== false;
+    const useCompactSummary = !showTitle
+      && graphIncludesImport && !graphIncludesExport
+      && currentShowsImport && !currentShowsExport
+      && cheapestEnabled;
+    const compactSummary = useCompactSummary
+      ? `<header class="compact-summary">${this._compactCurrentMetric('Afname', currentImport, 'import', importSelected, cheapestEnabled)}<span class="compact-context">Goedkoopste ${escapeHtml(this._config.cheapest_hours)} uur/dag</span></header>`
+      : '';
+    const currentBlock = !useCompactSummary && currentCards.length
+      ? `<div class="current-block">${currentCards.join('')}</div>`
+      : '';
     const contextLabels = [];
     if (cheapestEnabled) contextLabels.push(`<span><i class="swatch selection"></i>Goedkoopste ${escapeHtml(this._config.cheapest_hours)} uur/dag</span>`);
     if (exportBestEnabled) contextLabels.push(`<span><i class="swatch export-selection"></i>Beste teruglevering ${escapeHtml(this._config.export_best_hours)} uur/dag</span>`);
-    const heading = showTitle
-      ? `<div class="heading"><h2>${escapeHtml(this._config.title)}</h2></div>`
-      : contextLabels.length
-        ? `<div class="heading"><div class="header-cheapest">${contextLabels.join('')}</div></div>`
-        : '';
+    const heading = useCompactSummary
+      ? ''
+      : showTitle
+        ? `<div class="heading"><h2>${escapeHtml(this._config.title)}</h2></div>`
+        : contextLabels.length
+          ? `<div class="heading"><div class="header-cheapest">${contextLabels.join('')}</div></div>`
+          : '';
     const seriesLegend = [];
-    if (graphIncludesImport) seriesLegend.push(this._seriesLegendItem('import', 'Afname'));
+    if (graphIncludesImport && !useCompactSummary) seriesLegend.push(this._seriesLegendItem('import', 'Afname'));
     if (graphIncludesExport) seriesLegend.push(this._seriesLegendItem('export', 'Teruglevering'));
     const legendItems = [...seriesLegend, ...(showTitle ? contextLabels : [])];
     const legend = legendItems.length
@@ -983,7 +984,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <ha-card>
         <div class="card-content" style="--import-fill-color:${importFillColor};--export-fill-color:${exportFillColor}">
-          <header class="header">${heading}${currentBlock}</header>
+          ${compactSummary || `<header class="header">${heading}${currentBlock}</header>`}
           ${legend}
           ${dataStatus}
           <div class="chart" tabindex="0" role="img" aria-label="Elektriciteitsprijzen per interval. Gebruik de pijltjestoetsen om prijzen te bekijken.">
@@ -1007,7 +1008,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
                   <stop offset="100%" stop-color="var(--expensive)" />
                 </linearGradient>
               </defs>
-              ${selectionRailRects}${levelLines}${averageLine}
+              ${selectionBandRects}${levelLines}${averageLine}
               ${importAreaPath ? `<path d="${importAreaPath}" class="${importAreaClass}" />` : ''}
               ${exportAreaPath ? `<path d="${exportAreaPath}" class="${exportAreaClass}" />` : ''}
               ${importPath ? `<path d="${importPath}" class="price-line import-line" style="stroke:${importAppearance.stroke};stroke-width:${importAppearance.width};stroke-dasharray:${importAppearance.dash};stroke-linecap:${importAppearance.cap}" />` : ''}
@@ -1045,6 +1046,19 @@ class DynamicEnergyPriceCard extends HTMLElement {
         <strong>${priceText}</strong><span>ct/kWh</span>
       </div>${badge}
     </div>`;
+  }
+
+  _compactCurrentMetric(label, point, type, selected, enabled) {
+    const price = point?.price ?? null;
+    const priceClass = price === null ? 'unavailable' : this._priceClass(price, type);
+    const priceText = price === null ? '—' : formatPrice(price);
+    const favorable = enabled && point ? selected.has(point.timestamp) : false;
+    const appearance = this._seriesAppearance(type);
+    const hidden = this._hiddenSeries.has(type);
+    return `<button type="button" class="compact-current legend-series" data-series="${type}" aria-pressed="${!hidden}" title="${hidden ? 'Toon' : 'Verberg'} ${label.toLowerCase()}">
+      <i class="swatch series-swatch ${appearance.style}" style="--series-color:${appearance.swatchColor};--series-width:${appearance.width}px"></i>
+      ${label} <span>nu</span> <strong class="${priceClass}">${priceText}</strong><small>ct/kWh</small>${favorable ? '<em>Goedkoopst</em>' : ''}
+    </button>`;
   }
 
   _periodTable(importPeriods, exportPeriods, timeZone, todayKey, tomorrowKey) {
@@ -1176,6 +1190,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
 
     const entries = [];
     const liveEntries = [];
+    const anchorYs = [];
     const showDot = (type, price, selected, hours, favorableLabel) => {
       const dot = this.shadowRoot.querySelector(`.hover-dot[data-series="${type}"]`);
       if (!Number.isFinite(price)) {
@@ -1185,6 +1200,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         return;
       }
       const y = this._chart.yFor(price);
+      anchorYs.push(y);
       const priceClass = this._priceClass(price, type);
       const appearance = type === 'export' ? this._chart.exportAppearance : this._chart.importAppearance;
       dot.removeAttribute('hidden');
@@ -1204,9 +1220,26 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const tooltip = this.shadowRoot.querySelector('.tooltip');
     tooltip.hidden = false;
     tooltip.innerHTML = `<strong>${formatTime(point.timestamp, this._chart.timeZone)}–${formatTime(nextTime, this._chart.timeZone)}</strong>${entries.join('')}`;
-    const percentage = (x / this._chart.svgWidth) * 100;
-    tooltip.style.left = `${Math.max(15, Math.min(85, percentage))}%`;
-    tooltip.style.top = '48%';
+    const anchorY = anchorYs.length
+      ? anchorYs.reduce((total, value) => total + value, 0) / anchorYs.length
+      : this._chart.svgHeight / 2;
+    const chart = this.shadowRoot.querySelector('.chart');
+    const chartWidth = chart.clientWidth;
+    const chartHeight = chart.clientHeight;
+    const anchorX = (x / this._chart.svgWidth) * chartWidth;
+    const anchorTop = (anchorY / this._chart.svgHeight) * chartHeight;
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    const gap = 12;
+    const edge = 4;
+    const canPlaceRight = anchorX + gap + tooltipWidth <= chartWidth - edge;
+    const canPlaceLeft = anchorX - gap - tooltipWidth >= edge;
+    const canPlaceBelow = anchorTop + gap + tooltipHeight <= chartHeight - edge;
+    tooltip.dataset.horizontal = canPlaceRight ? 'right' : canPlaceLeft ? 'left' : 'center';
+    tooltip.dataset.vertical = canPlaceBelow ? 'below' : 'above';
+    const centeredX = Math.max(tooltipWidth / 2 + edge, Math.min(chartWidth - tooltipWidth / 2 - edge, anchorX));
+    tooltip.style.left = `${tooltip.dataset.horizontal === 'center' ? centeredX : anchorX}px`;
+    tooltip.style.top = `${anchorTop}px`;
     const live = this.shadowRoot.querySelector('.sr-only');
     live.textContent = `${formatTime(point.timestamp, this._chart.timeZone)} tot ${formatTime(nextTime, this._chart.timeZone)}, ${liveEntries.join(', ')}.`;
   }
@@ -1248,6 +1281,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
       h2 { margin: 0; font-size: var(--font-size-title); line-height: var(--line-height-tight); font-weight: var(--font-weight-strong); letter-spacing: -0.01em; }
       .header-cheapest { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; min-height: 34px; color: var(--secondary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
       .header-cheapest span { display: inline-flex; align-items: center; gap: 6px; }
+      .compact-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 30px; margin-bottom: 2px; }
+      .compact-current { min-width: 0; white-space: nowrap; color: var(--primary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); }
+      .compact-current span, .compact-current small { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-medium); }
+      .compact-current strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+      .compact-current strong.negative { color: var(--negative-color); }
+      .compact-current strong.cheap { color: var(--cheap); }
+      .compact-current strong.normal { color: var(--normal); }
+      .compact-current strong.expensive { color: var(--expensive); }
+      .compact-current strong.unavailable { color: var(--secondary-text-color); }
+      .compact-current em { padding: 2px 5px; border-radius: 999px; color: var(--cheap); background: var(--cheapest-fill); font-size: var(--font-size-meta); font-style: normal; }
+      .compact-context { overflow: hidden; color: var(--secondary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-medium); line-height: var(--line-height-tight); text-overflow: ellipsis; white-space: nowrap; }
       .current-block { display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; flex: none; margin-left: auto; }
       .current-metric { display: grid; justify-items: end; gap: 3px; min-width: 0; }
       .current-label { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
@@ -1289,9 +1333,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .average-label { transform: translateY(-135%); padding: 2px 5px; border-radius: 4px; color: var(--primary-text-color); background: color-mix(in srgb, var(--card-background-color) 88%, transparent); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); }
       .export-average-label { border-left: 2px dashed currentColor; }
       .day-divider { stroke: var(--primary-text-color); stroke-opacity: 0.28; stroke-dasharray: 4 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
-      .selection-rail { vector-effect: non-scaling-stroke; }
-      .import-selection-rail { fill: var(--cheap); fill-opacity: 0.78; }
-      .export-selection-rail { fill: var(--export-best); fill-opacity: 0.82; }
+      .selection-band { pointer-events: none; }
+      .import-selection-band { fill: var(--cheap); fill-opacity: 0.09; }
+      .export-selection-band { fill: var(--export-best); fill-opacity: 0.10; }
       .area { stroke: none; opacity: 0.14; }
       .import-area { fill: var(--import-fill-color); }
       .export-area { fill: var(--export-fill-color); }
@@ -1317,11 +1361,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .hover-dot.normal { border-color: var(--normal); }
       .hover-dot.expensive { border-color: var(--expensive); }
       .export-dot { width: 14px; height: 14px; }
-      .tooltip { position: absolute; z-index: 3; transform: translate(-50%, -50%); min-width: 180px; padding: 9px 11px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2); pointer-events: none; font-variant-numeric: tabular-nums; }
+      .tooltip { position: absolute; z-index: 3; min-width: 180px; padding: 9px 11px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2); pointer-events: none; font-variant-numeric: tabular-nums; }
+      .tooltip[data-horizontal="right"][data-vertical="below"] { transform: translate(12px, 12px); }
+      .tooltip[data-horizontal="right"][data-vertical="above"] { transform: translate(12px, calc(-100% - 12px)); }
+      .tooltip[data-horizontal="left"][data-vertical="below"] { transform: translate(calc(-100% - 12px), 12px); }
+      .tooltip[data-horizontal="left"][data-vertical="above"] { transform: translate(calc(-100% - 12px), calc(-100% - 12px)); }
+      .tooltip[data-horizontal="center"][data-vertical="below"] { transform: translate(-50%, 12px); }
+      .tooltip[data-horizontal="center"][data-vertical="above"] { transform: translate(-50%, calc(-100% - 12px)); }
       .tooltip strong, .tooltip span, .tooltip small { display: block; white-space: nowrap; }
       .tooltip strong { margin-bottom: 4px; font-size: var(--font-size-label); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
       .tooltip span { margin-top: 2px; font-size: var(--font-size-label); line-height: var(--line-height-normal); }
-      .tooltip span b { display: inline-block; min-width: 90px; font-weight: var(--font-weight-strong); }
+      .tooltip span b { min-width: 0; font-weight: var(--font-weight-strong); }
       .tooltip small { margin: 1px 0 4px 16px; color: var(--secondary-text-color); font-size: var(--font-size-meta); line-height: var(--line-height-normal); }
       .tooltip-series { display: inline-block; width: 12px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2px solid var(--series-color); background: none; }
       .tooltip-series.dashed { border-top-style: dashed; }
@@ -1343,6 +1393,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
       @media (max-width: 520px) {
         :host { --font-size-title: 17px; --font-size-value: 18px; }
         .card-content { padding: 12px 12px 10px; }
+        .compact-summary { gap: 8px; }
+        .compact-current { font-size: 11px; }
+        .compact-current strong { font-size: 15px; }
+        .compact-context { font-size: var(--font-size-meta); }
         .header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
         .heading { grid-column: 1 / -1; }
         .current-block { grid-column: 1 / -1; width: 100%; max-width: none; margin-left: 0; gap: 5px; justify-content: flex-end; }
