@@ -79,6 +79,25 @@ export function isCheapestHoursEnabled(value) {
   return Number.isFinite(Number(value)) && Number(value) > 0;
 }
 
+export function normalizeLineStyle(value, fallback = 'solid') {
+  const allowed = new Set(['solid', 'dashed', 'dotted']);
+  return allowed.has(value) ? value : allowed.has(fallback) ? fallback : 'solid';
+}
+
+export function normalizeLineWidth(value, fallback = 3.5) {
+  const parsed = Number(value);
+  const fallbackValue = Number(fallback);
+  const width = Number.isFinite(parsed) ? parsed : Number.isFinite(fallbackValue) ? fallbackValue : 3.5;
+  return Math.round(Math.min(8, Math.max(1, width)) * 2) / 2;
+}
+
+export function rgbColorToCss(value) {
+  if (!Array.isArray(value) || value.length !== 3) return null;
+  const channels = value.map(Number);
+  if (!channels.every((channel) => Number.isInteger(channel) && channel >= 0 && channel <= 255)) return null;
+  return `rgb(${channels.join(', ')})`;
+}
+
 export function groupSelectedPeriods(points, selected, intervalMinutes) {
   const intervalMs = Number(intervalMinutes) * 60000;
   const periods = [];

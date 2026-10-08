@@ -23,8 +23,8 @@ Eén zelfstandige Lovelace-card. Bovenaan staan optioneel de titel en één of t
 - Pointer/touch-interactie gebruikt minimaal 44 px effectieve hit area.
 
 ## Design tokens
-- Typography: Home Assistant-font; tabular numerals voor prijzen en tijden.
-- Colors and semantic roles: voor afname is laag groen en hoog rood; voor teruglevering is dit omgekeerd, omdat een hoge vergoeding gunstig is. Bij twee lijnen onderscheidt een doorgetrokken afnamelijn zich van een gestreepte terugleverlijn, zodat kleur niet het enige signaal is. Gunstige perioden krijgen een effen, transparante achtergrondmarkering.
+- Typography: Home Assistant-font; titel 18 px/600, actuele waarden 20 px/600, labels en legenda 12 px/600, metadata en aslabels 10 px/500, body en tooltip 12 px/400. Prijzen en tijden gebruiken tabular numerals. Alleen gewichten 400, 500 en 600 worden gebruikt.
+- Colors and semantic roles: voor afname is laag groen en hoog rood; voor teruglevering is dit omgekeerd, omdat een hoge vergoeding gunstig is. Iedere lijn kan optioneel één vaste RGB-kleur krijgen; zonder override blijft de automatische prijsgradiënt actief. Lijnstijl blijft naast kleur beschikbaar, zodat kleur nooit het enige onderscheid is. Gunstige perioden krijgen een effen, transparante achtergrondmarkering.
 - Spacing scale: 4, 8, 12, 16, 24 px.
 - Radii: 8 px tooltip, Home Assistant-cardradius voor buitenkant.
 - Borders: subtiele `divider-color`; focus via `primary-color`.
@@ -32,10 +32,10 @@ Eén zelfstandige Lovelace-card. Bovenaan staan optioneel de titel en één of t
 - Motion: 140 ms tooltip/hover; uit bij reduced motion.
 
 ## Component rules
-De card leest `attributes.data` van de verplichte afname-entity. Elk punt bevat `start_time` en `price_per_kwh`. Terugleverprijzen gebruiken een tweede entity met dezelfde opbouw. `export_price_offset` wordt uitsluitend bij de prijs uit die terugleverentity opgeteld; de afnamereeks is nooit de basis voor deze offset. De native editor groepeert instellingen in uitklapbare kopjes `Afname` en `Teruglevering`. Afname- en terugleverlijnen gebruiken dezelfde numerieke prijsgrenzen, maar tegengestelde kleursemantiek. Wanneer `show_title` uit staat, neemt actieve gunstige-urencontext de titelpositie over.
+De card leest `attributes.data` van de verplichte afname-entity. Elk punt bevat `start_time` en `price_per_kwh`. Terugleverprijzen gebruiken een tweede entity met dezelfde opbouw. `export_price_offset` wordt uitsluitend bij de prijs uit die terugleverentity opgeteld; de afnamereeks is nooit de basis voor deze offset. De native editor groepeert alle velden in uitklapbare kopjes `Algemeen`, `Afname` en `Teruglevering`, met platte YAML-sleutels. De drie prijsgrenzen staan onder `Algemeen`. Iedere tariefreeks heeft eigen lijnstijl, lijndikte en optionele vaste kleur. Afname- en terugleverlijnen gebruiken zonder kleuroverride dezelfde numerieke prijsgrenzen, maar tegengestelde kleursemantiek. Wanneer `show_title` uit staat, neemt actieve gunstige-urencontext de titelpositie over.
 
 ## Data display and forms
-Prijs wordt in ct/kWh getoond, met twee decimalen in tooltip. Teruglevering wordt als prijs/opbrengst getoond en niet kunstmatig negatief gemaakt; echte negatieve marktwaarden blijven wel mogelijk. `graph_mode` en `current_price_mode` bieden `import`, `both` en `export`; de actuele-prijsmodus ondersteunt daarnaast `none`. Tijd wordt Nederlands als `HH:mm–HH:mm` weergegeven. Vandaag en morgen worden als aparte kalenderdagen behandeld.
+Prijs wordt in ct/kWh getoond, met twee decimalen in tooltip. Teruglevering wordt als prijs/opbrengst getoond en niet kunstmatig negatief gemaakt; echte negatieve marktwaarden blijven wel mogelijk. `graph_mode` en `current_price_mode` bieden `import`, `both` en `export`; de actuele-prijsmodus ondersteunt daarnaast `none`. Lijnstijlen bieden doorgetrokken, gestreept en gestippeld; dikte loopt van 1 tot 8 px in stappen van 0,5. Een lege kleurwaarde herstelt de automatische prijskleuren. Tijd wordt Nederlands als `HH:mm–HH:mm` weergegeven. Vandaag en morgen worden als aparte kalenderdagen behandeld.
 
 ## Interaction and feedback
 Hover, pointer-drag en tik tonen één verticale richtlijn en per zichtbare serie een ronde marker. De tooltip noemt tijd, de zichtbare afname- en/of terugleverprijs en de gunstige-periodestatus. Afname selecteert de laagste prijzen; teruglevering selecteert de hoogste prijzen.
@@ -79,15 +79,17 @@ Geen blokkerende ontwerpbeslissingen.
 - Standaard blijven grafiek en actuele prijs op alleen afname staan, zodat bestaande configuraties hetzelfde ogen.
 - Grafiekmodus en actuele-prijsmodus zijn onafhankelijk instelbaar op afname, beide of teruglevering; actuele prijzen kunnen ook volledig uit.
 - Terugleverdata komt uit een tweede entity; de optionele offset wordt uitsluitend op die terugleverentity toegepast.
-- De afnamelijn is doorgetrokken. De terugleverlijn gebruikt duidelijk zichtbare onderbrekingen met rechte lijnuiteinden; de legenda toont hetzelfde patroon, zodat de reeksen ook zonder kleur te onderscheiden zijn.
+- Afname en teruglevering hebben onafhankelijk instelbare lijnstijl, dikte en optionele vaste kleur. Standaard blijft afname doorgetrokken op 3,5 px en teruglevering gestreept op 3,5 px. Legenda, tooltip en hovermarker volgen de gekozen stijl en kleur.
 - De terugleverlijn gebruikt dezelfde grenzen maar omgekeerde kleuren: hoge terugleverprijs groen, lage terugleverprijs rood.
 - Geselecteerde beste terugleverperioden gebruiken een vaste blauwe accentkleur in zowel lichte als donkere Home Assistant-thema's.
 - Onder de algemene instellingen kan `Prijsgrenzen tonen` de lijnen én prijslabels voor goedkoop, normaal en duur gezamenlijk verbergen. De grenswaarden blijven actief voor de kleurclassificatie.
 - Per dag kunnen afzonderlijk de laagste afnameprijzen en hoogste terugleverprijzen worden geselecteerd en in tabellen worden getoond.
-- De native editor bevat herkenbare uitklapbare groepen voor `Afname` en `Teruglevering`.
+- De native editor bevat herkenbare uitklapbare groepen voor `Algemeen`, `Afname` en `Teruglevering`; prijsgrenzen staan onder `Algemeen`.
+- De card gebruikt één consistente typografische schaal en alleen de gewichten 400, 500 en 600.
 - Nieuwe Lovelace-dashboardweergave is geïnstalleerd en teruggelezen.
 
 ## Change log
+- 2026-10-08: editor heringedeeld in Algemeen/Afname/Teruglevering; onafhankelijke lijnopmaak en consistente typografie gespecificeerd.
 - 2026-10-07: dubbele afname-/terugleverweergave, onafhankelijke modi, offsetbron, omgekeerde terugleverkleuren en gegroepeerde editorinstellingen vastgelegd.
 - 2026-10-07: native Sections-sizing en een optioneel verborgen titel vastgelegd.
 - 2026-10-06: initiële specificatie op basis van live Tibber-kwartierdata en gebruikerskeuzes.

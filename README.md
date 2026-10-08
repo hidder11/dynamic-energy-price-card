@@ -10,6 +10,7 @@ Existing configurations remain import-only by default. Export prices come from a
 - Independent current-price mode: import, export, both, or hidden
 - Solid import line and dashed export line with explicit legend labels
 - Clearly separated export dashes with matching graph and legend patterns
+- Independent line style (`solid`, `dashed`, or `dotted`), thickness, and optional fixed RGB color for import and export
 - Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
 - Real tariff values are preserved; export prices are not sign-inverted
 - Export source from a dedicated sensor; `export_price_offset` adjusts that export series
@@ -66,6 +67,8 @@ show_title: true
 show_hover_line: true
 show_average_line: false
 show_price_levels: true
+import_line_style: solid
+import_line_width: 3.5
 cheap_price: 0.15
 normal_price: 0.25
 expensive_price: 0.40
@@ -119,6 +122,12 @@ show_export_table: true
 | `show_hover_line` | No | `true` | Shows a guide line for the active tooltip interval. |
 | `show_average_line` | No | `false` | Shows a separately labelled average for each visible graph series. |
 | `show_price_levels` | No | `true` | Shows the cheap, normal, and expensive reference lines and their price labels. |
+| `import_line_style` | No | `solid` | Import line style: `solid`, `dashed`, or `dotted`. |
+| `import_line_width` | No | `3.5` | Import line thickness from 1 to 8 px. |
+| `import_line_color` | No | — | Optional RGB color override. Empty keeps automatic threshold colors. |
+| `export_line_style` | No | `dashed` | Export line style: `solid`, `dashed`, or `dotted`. |
+| `export_line_width` | No | `3.5` | Export line thickness from 1 to 8 px. |
+| `export_line_color` | No | — | Optional RGB color override. Empty keeps automatic reversed threshold colors. |
 | `cheap_price` | No | `0.15` | Low threshold in EUR/kWh. Low import is favorable; low export is unfavorable. |
 | `normal_price` | No | `0.25` | Middle gradient anchor in EUR/kWh. |
 | `expensive_price` | No | `0.40` | High threshold in EUR/kWh. High import is unfavorable; high export is favorable. |
@@ -133,6 +142,8 @@ Thresholds must be ordered as:
 ```text
 cheap_price < normal_price < expensive_price
 ```
+
+The visual editor groups configuration under **General**, **Import**, and **Export**. Price thresholds are in **General**. Line appearance settings are stored as flat YAML keys, so existing configurations remain compatible.
 
 An export source is required only when the selected graph mode, current-price mode, or export-period selection uses export data. The card displays a configuration error with recovery guidance when such a source is missing.
 

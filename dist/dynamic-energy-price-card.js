@@ -80,6 +80,25 @@ function isCheapestHoursEnabled(value) {
   return Number.isFinite(Number(value)) && Number(value) > 0;
 }
 
+function normalizeLineStyle(value, fallback = 'solid') {
+  const allowed = new Set(['solid', 'dashed', 'dotted']);
+  return allowed.has(value) ? value : allowed.has(fallback) ? fallback : 'solid';
+}
+
+function normalizeLineWidth(value, fallback = 3.5) {
+  const parsed = Number(value);
+  const fallbackValue = Number(fallback);
+  const width = Number.isFinite(parsed) ? parsed : Number.isFinite(fallbackValue) ? fallbackValue : 3.5;
+  return Math.round(Math.min(8, Math.max(1, width)) * 2) / 2;
+}
+
+function rgbColorToCss(value) {
+  if (!Array.isArray(value) || value.length !== 3) return null;
+  const channels = value.map(Number);
+  if (!channels.every((channel) => Number.isInteger(channel) && channel >= 0 && channel <= 255)) return null;
+  return `rgb(${channels.join(', ')})`;
+}
+
 function groupSelectedPeriods(points, selected, intervalMinutes) {
   const intervalMs = Number(intervalMinutes) * 60000;
   const periods = [];
@@ -263,6 +282,12 @@ const modeOptions = (includeNone = false) => [
   ...(includeNone ? [{ value: 'none', label: 'Geen' }] : []),
 ];
 
+const lineStyleOptions = [
+  { value: 'solid', label: 'Doorgetrokken' },
+  { value: 'dashed', label: 'Gestreept' },
+  { value: 'dotted', label: 'Gestippeld' },
+];
+
 class DynamicEnergyPriceCard extends HTMLElement {
   constructor() {
     super();
@@ -285,6 +310,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_hover_line: 'Verticale hoverlijn',
       show_average_line: 'Gemiddelde prijslijn',
       show_price_levels: 'Prijsgrenzen tonen',
+      import_line_style: 'Lijnstijl',
+      import_line_width: 'Lijndikte',
+      import_line_color: 'Vaste lijnkleur',
+      export_line_style: 'Lijnstijl',
+      export_line_width: 'Lijndikte',
+      export_line_color: 'Vaste lijnkleur',
       cheap_price: 'Goedkoop',
       normal_price: 'Normaal',
       expensive_price: 'Duur',
@@ -300,23 +331,39 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const thresholdSelector = {
       number: { min: -1, max: 1, step: 0.01, mode: 'slider', unit_of_measurement: '€/kWh' },
     };
+    const lineStyleSelector = { select: { mode: 'dropdown', options: lineStyleOptions } };
+    const lineWidthSelector = {
+      number: { min: 1, max: 8, step: 0.5, mode: 'box', unit_of_measurement: 'px' },
+    };
+    const lineColorSelector = { color_rgb: {} };
 
     return {
       schema: [
         {
-          name: 'graph_mode',
-          selector: { select: { mode: 'dropdown', options: modeOptions() } },
+          type: 'expandable',
+          name: 'general_settings',
+          title: 'Algemeen',
+          flatten: true,
+          schema: [
+            {
+              name: 'graph_mode',
+              selector: { select: { mode: 'dropdown', options: modeOptions() } },
+            },
+            {
+              name: 'current_price_mode',
+              selector: { select: { mode: 'dropdown', options: modeOptions(true) } },
+            },
+            { name: 'title', selector: { text: {} } },
+            { name: 'show_title', selector: { boolean: {} } },
+            { name: 'show_hover_line', selector: { boolean: {} } },
+            { name: 'show_average_line', selector: { boolean: {} } },
+            { name: 'show_price_levels', selector: { boolean: {} } },
+            { name: 'tomorrow_after', required: true, selector: numberSelector('uur') },
+            { name: 'cheap_price', required: true, selector: thresholdSelector },
+            { name: 'normal_price', required: true, selector: thresholdSelector },
+            { name: 'expensive_price', required: true, selector: thresholdSelector },
+          ],
         },
-        {
-          name: 'current_price_mode',
-          selector: { select: { mode: 'dropdown', options: modeOptions(true) } },
-        },
-        { name: 'title', selector: { text: {} } },
-        { name: 'show_title', selector: { boolean: {} } },
-        { name: 'show_hover_line', selector: { boolean: {} } },
-        { name: 'show_average_line', selector: { boolean: {} } },
-        { name: 'show_price_levels', selector: { boolean: {} } },
-        { name: 'tomorrow_after', required: true, selector: numberSelector('uur') },
         {
           type: 'expandable',
           name: 'import_settings',
@@ -330,9 +377,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
             },
             { name: 'cheapest_hours', selector: numberSelector('uur') },
             { name: 'show_cheapest_table', selector: { boolean: {} } },
-            { name: 'cheap_price', required: true, selector: thresholdSelector },
-            { name: 'normal_price', required: true, selector: thresholdSelector },
-            { name: 'expensive_price', required: true, selector: thresholdSelector },
+            { name: 'import_line_style', selector: lineStyleSelector },
+            { name: 'import_line_width', selector: lineWidthSelector },
+            { name: 'import_line_color', selector: lineColorSelector },
           ],
         },
         {
@@ -348,6 +395,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
             },
             { name: 'export_best_hours', selector: numberSelector('uur') },
             { name: 'show_export_table', selector: { boolean: {} } },
+            { name: 'export_line_style', selector: lineStyleSelector },
+            { name: 'export_line_width', selector: lineWidthSelector },
+            { name: 'export_line_color', selector: lineColorSelector },
           ],
         },
       ],
@@ -362,6 +412,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
         show_hover_line: 'Toont een verticale hulplijn bij het actieve prijsinterval.',
         show_average_line: 'Toont per zichtbare tariefreeks een gelabeld gemiddelde.',
         show_price_levels: 'Toont de lijnen en prijslabels voor goedkoop, normaal en duur.',
+        import_line_style: 'Kies doorgetrokken, gestreept of gestippeld.',
+        import_line_width: 'Lijndikte van 1 tot 8 pixels.',
+        import_line_color: 'Optioneel. Leeg behoudt de automatische prijskleuren.',
+        export_line_style: 'Kies doorgetrokken, gestreept of gestippeld.',
+        export_line_width: 'Lijndikte van 1 tot 8 pixels.',
+        export_line_color: 'Optioneel. Leeg behoudt de automatische prijskleuren.',
         cheap_price: 'Onder deze prijs is afname goedkoop; voor teruglevering is laag juist ongunstig.',
         normal_price: 'Middelste prijsgrens voor beide tarieven.',
         expensive_price: 'Boven deze prijs is afname duur en teruglevering gunstig.',
@@ -386,6 +442,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_hover_line: true,
       show_average_line: false,
       show_price_levels: true,
+      import_line_style: 'solid',
+      import_line_width: 3.5,
+      export_line_style: 'dashed',
+      export_line_width: 3.5,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -407,6 +467,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_hover_line: true,
       show_average_line: false,
       show_price_levels: true,
+      import_line_style: 'solid',
+      import_line_width: 3.5,
+      export_line_style: 'dashed',
+      export_line_width: 3.5,
       cheap_price: 0.15,
       normal_price: 0.25,
       expensive_price: 0.40,
@@ -583,6 +647,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const yFor = (price) => PLOT.top + ((maximum - price) / yRange) * plotHeight;
     const importPath = graphShowsImport ? seriesPath(timeline, 'importPrice', xFor, yFor, intervalMs) : '';
     const exportPath = graphShowsExport ? seriesPath(timeline, 'exportPrice', xFor, yFor, intervalMs) : '';
+    const importAppearance = this._seriesAppearance('import');
+    const exportAppearance = this._seriesAppearance('export');
     const importAreaPath = graphShowsImport && importPath && timeline.every((point) => Number.isFinite(point.importPrice))
       ? `${importPath} L ${xFor(timeline.at(-1).timestamp)} ${PLOT.top + plotHeight} L ${xFor(start)} ${PLOT.top + plotHeight} Z`
       : '';
@@ -695,8 +761,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
         ? `<div class="heading"><div class="header-cheapest">${contextLabels.join('')}</div></div>`
         : '';
     const seriesLegend = [];
-    if (graphShowsImport) seriesLegend.push('<span><i class="swatch import-series"></i>Afname</span>');
-    if (graphShowsExport) seriesLegend.push('<span><i class="swatch export-series"></i>Teruglevering</span>');
+    if (graphShowsImport) seriesLegend.push(this._seriesLegendItem('import', 'Afname'));
+    if (graphShowsExport) seriesLegend.push(this._seriesLegendItem('export', 'Teruglevering'));
     const legendItems = [...seriesLegend, ...(showTitle ? contextLabels : [])];
     const legend = cheapestEnabled || exportBestEnabled || legendItems.length > 1
       ? `<div class="legend" aria-label="Legenda">${legendItems.join('')}</div>`
@@ -712,6 +778,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     this._chart = {
       timeline, importSelected, exportSelected, intervalMs, timeZone, xFor, yFor, start, span,
       cheapPrice, normalPrice, expensivePrice, svgWidth, svgHeight, graphShowsImport, graphShowsExport,
+      importAppearance, exportAppearance,
     };
 
     this.shadowRoot.innerHTML = `
@@ -738,8 +805,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
               </defs>
               ${selectionRects}${levelLines}${averageLine}
               ${importAreaPath ? `<path d="${importAreaPath}" class="area" />` : ''}
-              ${importPath ? `<path d="${importPath}" class="price-line import-line" />` : ''}
-              ${exportPath ? `<path d="${exportPath}" class="price-line export-line" />` : ''}
+              ${importPath ? `<path d="${importPath}" class="price-line import-line" style="stroke:${importAppearance.stroke};stroke-width:${importAppearance.width};stroke-dasharray:${importAppearance.dash};stroke-linecap:${importAppearance.cap}" />` : ''}
+              ${exportPath ? `<path d="${exportPath}" class="price-line export-line" style="stroke:${exportAppearance.stroke};stroke-width:${exportAppearance.width};stroke-dasharray:${exportAppearance.dash};stroke-linecap:${exportAppearance.cap}" />` : ''}
               ${dayMarkers}${nowMarker}${hoverLine}
             </svg>
             <span class="hover-dot" data-series="import" hidden></span>
@@ -786,6 +853,30 @@ class DynamicEnergyPriceCard extends HTMLElement {
     return `<section class="price-table-wrap ${className}-wrap"><h3>${title}</h3>
       <table class="cheapest-table ${className}"><thead><tr><th>Dag</th><th>Start</th><th>Einde</th><th>Duur</th></tr></thead><tbody>${rows}</tbody></table>
     </section>`;
+  }
+
+  _seriesAppearance(type) {
+    const prefix = type === 'export' ? 'export' : 'import';
+    const fallbackStyle = type === 'export' ? 'dashed' : 'solid';
+    const style = normalizeLineStyle(this._config?.[`${prefix}_line_style`], fallbackStyle);
+    const width = normalizeLineWidth(this._config?.[`${prefix}_line_width`], 3.5);
+    const color = rgbColorToCss(this._config?.[`${prefix}_line_color`]);
+    const dash = style === 'dashed' ? '8 7' : style === 'dotted' ? '1 7' : 'none';
+    const cap = style === 'dashed' ? 'butt' : 'round';
+    return {
+      style,
+      width,
+      color,
+      dash,
+      cap,
+      stroke: color ?? `url(#${type === 'export' ? 'export-line-gradient' : 'price-line-gradient'})`,
+      swatchColor: color ?? 'var(--primary-color)',
+    };
+  }
+
+  _seriesLegendItem(type, label) {
+    const appearance = this._seriesAppearance(type);
+    return `<span><i class="swatch series-swatch ${appearance.style}" style="--series-color:${appearance.swatchColor};--series-width:${appearance.width}px"></i>${label}</span>`;
   }
 
   _priceClass(price, type) {
@@ -870,12 +961,16 @@ class DynamicEnergyPriceCard extends HTMLElement {
       }
       const y = this._chart.yFor(price);
       const priceClass = this._priceClass(price, type);
+      const appearance = type === 'export' ? this._chart.exportAppearance : this._chart.importAppearance;
       dot.removeAttribute('hidden');
       dot.style.left = `${(x / this._chart.svgWidth) * 100}%`;
       dot.style.top = `${(y / this._chart.svgHeight) * 100}%`;
+      dot.style.borderStyle = appearance.style === 'solid' ? 'solid' : appearance.style;
+      if (appearance.color) dot.style.borderColor = appearance.color;
+      else dot.style.removeProperty('border-color');
       dot.setAttribute('class', `hover-dot${type === 'export' ? ' export-dot' : ''} ${priceClass}`);
       const favorable = selected.has(point.timestamp);
-      entries.push(`<span><i class="tooltip-series ${type}"></i><b>${type === 'import' ? 'Afname' : 'Teruglevering'}</b> ${formatPrice(price)} ct/kWh</span>${favorable ? `<small>${favorableLabel} ${escapeHtml(hours)} uur</small>` : ''}`);
+      entries.push(`<span><i class="tooltip-series ${appearance.style}" style="--series-color:${appearance.swatchColor}"></i><b>${type === 'import' ? 'Afname' : 'Teruglevering'}</b> ${formatPrice(price)} ct/kWh</span>${favorable ? `<small>${favorableLabel} ${escapeHtml(hours)} uur</small>` : ''}`);
       liveEntries.push(`${type === 'import' ? 'afname' : 'teruglevering'} ${formatPrice(price)} cent per kilowattuur${favorable ? `, ${favorableLabel} ${hours} uur` : ''}`);
     };
     if (this._chart.graphShowsImport) showDot('import', point.importPrice, this._chart.importSelected, this._config.cheapest_hours, 'goedkoopste');
@@ -909,54 +1004,62 @@ class DynamicEnergyPriceCard extends HTMLElement {
         --export-best: #1976d2;
         --cheapest-fill: color-mix(in srgb, var(--cheap) 13%, transparent);
         --export-best-fill: color-mix(in srgb, var(--export-best) 18%, transparent);
+        --font-size-meta: 10px;
+        --font-size-label: 12px;
+        --font-size-title: 18px;
+        --font-size-value: 20px;
+        --font-weight-regular: 400;
+        --font-weight-medium: 500;
+        --font-weight-strong: 600;
+        --line-height-tight: 1.2;
+        --line-height-normal: 1.4;
         display: block;
         height: 100%;
       }
       ha-card { overflow: hidden; height: 100%; }
-      .card-content { display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; height: 100%; padding: 16px 16px 12px; color: var(--primary-text-color); }
+      .card-content { display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; height: 100%; padding: 16px 16px 12px; color: var(--primary-text-color); font-weight: var(--font-weight-regular); line-height: var(--line-height-normal); }
       .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
       .heading { min-width: 0; }
-      h2 { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 650; letter-spacing: -0.01em; }
-      .header-cheapest { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; min-height: 34px; color: var(--secondary-text-color); font-size: 12px; font-weight: 600; }
+      h2 { margin: 0; font-size: var(--font-size-title); line-height: var(--line-height-tight); font-weight: var(--font-weight-strong); letter-spacing: -0.01em; }
+      .header-cheapest { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; min-height: 34px; color: var(--secondary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
       .header-cheapest span { display: inline-flex; align-items: center; gap: 6px; }
       .current-block { display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; flex: none; margin-left: auto; }
       .current-metric { display: grid; justify-items: end; gap: 3px; min-width: 0; }
-      .current-label { color: var(--secondary-text-color); font-size: 10px; font-weight: 650; }
+      .current-label { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
       .current { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 5px; padding: 7px 9px; border-radius: 8px; background: var(--secondary-background-color); font-variant-numeric: tabular-nums; }
-      .current strong { font-size: 20px; line-height: 1; }
-      .current span { font-size: 10px; color: var(--secondary-text-color); }
+      .current strong { font-size: var(--font-size-value); line-height: 1; font-weight: var(--font-weight-strong); }
+      .current span { font-size: var(--font-size-meta); color: var(--secondary-text-color); }
       .current.negative strong { color: var(--negative-color); }
       .current.cheap strong { color: var(--cheap); }
       .current.normal strong { color: var(--normal); }
       .current.expensive strong { color: var(--expensive); }
       .current.unavailable strong { color: var(--secondary-text-color); }
-      .current-window { color: var(--secondary-text-color); font-size: 9px; font-weight: 650; }
+      .current-window { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
       .current-window.active { color: var(--cheap); }
       .current-metric.export .current-window.active { color: var(--export-best); }
-      .legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 12px 0 2px; color: var(--secondary-text-color); font-size: 11px; }
+      .legend { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 12px 0 2px; color: var(--secondary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-medium); line-height: var(--line-height-tight); }
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
       .swatch { width: 15px; height: 4px; border-radius: 4px; background: var(--divider-color); }
-      .swatch.import-series { background: var(--primary-color); }
-      .swatch.export-series { height: 3px; border-radius: 0; background: repeating-linear-gradient(90deg, var(--primary-color) 0 7px, transparent 7px 13px); }
+      .series-swatch { height: 0; border-radius: 0; border-top: var(--series-width, 3px) solid var(--series-color); background: none; }
+      .series-swatch.dashed { border-top-style: dashed; }
+      .series-swatch.dotted { border-top-style: dotted; }
       .swatch.selection, .swatch.export-selection { height: 11px; border-radius: 2px; background: var(--cheapest-fill); border: 1px solid color-mix(in srgb, var(--cheap) 45%, transparent); }
       .swatch.export-selection { background: var(--export-best-fill); border-color: color-mix(in srgb, var(--export-best) 55%, transparent); }
       .chart { position: relative; flex: 1 1 300px; min-height: 120px; outline: none; touch-action: pan-y; }
       .chart:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-color); border-radius: 8px; }
       svg { display: block; width: 100%; height: 100%; overflow: hidden; }
-      .chart-label { position: absolute; z-index: 1; pointer-events: none; font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 1px 2px var(--card-background-color), 0 0 4px var(--card-background-color); }
-      .x-label { bottom: 4px; transform: translateX(-50%); color: var(--secondary-text-color); font-size: 10px; }
-      .y-label { left: 1px; transform: translateY(-50%); color: var(--secondary-text-color); font-size: 10px; }
-      .day-label { top: 8px; color: var(--primary-text-color); font-size: 11px; font-weight: 700; }
-      .now-label { top: 8px; transform: translateX(-50%); color: var(--primary-text-color); font-size: 10px; font-weight: 700; }
-      .level-label { right: 3px; transform: translateY(-135%); color: var(--secondary-text-color); font-size: 10px; }
+      .chart-label { position: absolute; z-index: 1; pointer-events: none; font-size: var(--font-size-meta); font-weight: var(--font-weight-medium); line-height: var(--line-height-tight); font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 1px 2px var(--card-background-color), 0 0 4px var(--card-background-color); }
+      .x-label { bottom: 4px; transform: translateX(-50%); color: var(--secondary-text-color); }
+      .y-label { left: 1px; transform: translateY(-50%); color: var(--secondary-text-color); }
+      .day-label { top: 8px; color: var(--primary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); }
+      .now-label { top: 24px; transform: translateX(-50%); color: var(--primary-text-color); font-weight: var(--font-weight-strong); }
+      .level-label { right: 3px; transform: translateY(-135%); color: var(--secondary-text-color); }
       .level-label.import-level:nth-of-type(1) { color: var(--cheap); }
-      .average-label { transform: translateY(-135%); color: var(--primary-text-color); font-size: 10px; font-weight: 650; }
+      .average-label { transform: translateY(-135%); color: var(--primary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); }
       .export-average-label { border-bottom: 1px dashed currentColor; }
       .day-divider { stroke: var(--primary-text-color); stroke-opacity: 0.28; stroke-dasharray: 4 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .area { fill: url(#price-area); stroke: none; }
-      .price-line { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-      .import-line { stroke: url(#price-line-gradient); }
-      .export-line { stroke: url(#export-line-gradient); stroke-dasharray: 8 7; stroke-linecap: butt; }
+      .price-line { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
       .level-line { stroke-opacity: 0.55; stroke-dasharray: 5 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .cheap-level[data-level-class="import-level"] { stroke: var(--cheap); }
       .normal-level { stroke: var(--normal); }
@@ -975,20 +1078,21 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .hover-dot.cheap { border-color: var(--cheap); }
       .hover-dot.normal { border-color: var(--normal); }
       .hover-dot.expensive { border-color: var(--expensive); }
-      .export-dot { width: 14px; height: 14px; border-style: dashed; }
+      .export-dot { width: 14px; height: 14px; }
       .tooltip { position: absolute; z-index: 3; transform: translate(-50%, -50%); min-width: 180px; padding: 9px 11px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2); pointer-events: none; font-variant-numeric: tabular-nums; }
       .tooltip strong, .tooltip span, .tooltip small { display: block; white-space: nowrap; }
-      .tooltip strong { margin-bottom: 4px; font-size: 12px; }
-      .tooltip span { margin-top: 2px; font-size: 12px; }
-      .tooltip span b { display: inline-block; min-width: 90px; }
-      .tooltip small { margin: 1px 0 4px 16px; color: var(--secondary-text-color); font-size: 10px; }
-      .tooltip-series { display: inline-block; width: 10px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--primary-color); }
-      .tooltip-series.export { height: 0; border-top: 2px dashed var(--primary-color); background: none; }
+      .tooltip strong { margin-bottom: 4px; font-size: var(--font-size-label); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
+      .tooltip span { margin-top: 2px; font-size: var(--font-size-label); line-height: var(--line-height-normal); }
+      .tooltip span b { display: inline-block; min-width: 90px; font-weight: var(--font-weight-strong); }
+      .tooltip small { margin: 1px 0 4px 16px; color: var(--secondary-text-color); font-size: var(--font-size-meta); line-height: var(--line-height-normal); }
+      .tooltip-series { display: inline-block; width: 12px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2px solid var(--series-color); background: none; }
+      .tooltip-series.dashed { border-top-style: dashed; }
+      .tooltip-series.dotted { border-top-style: dotted; }
       .price-table-wrap { flex: 0 1 auto; min-height: 0; max-height: 190px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--divider-color); overflow: auto; }
-      .price-table-wrap h3 { margin: 0 0 4px; font-size: 11px; font-weight: 700; }
-      .cheapest-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+      .price-table-wrap h3 { margin: 0 0 4px; font-size: var(--font-size-label); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
+      .cheapest-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-label); line-height: var(--line-height-normal); font-variant-numeric: tabular-nums; }
       .cheapest-table th, .cheapest-table td { padding: 6px 8px; text-align: left; white-space: nowrap; }
-      .cheapest-table th { color: var(--secondary-text-color); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
+      .cheapest-table th { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); text-transform: uppercase; letter-spacing: 0.04em; }
       .cheapest-table tbody tr { border-top: 1px solid var(--divider-color); }
       .cheapest-table td:last-child, .cheapest-table th:last-child { text-align: right; }
       .state { display: grid; gap: 5px; padding: 20px; }
@@ -996,14 +1100,11 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
       [hidden] { display: none !important; }
       @media (max-width: 520px) {
+        :host { --font-size-title: 17px; --font-size-value: 18px; }
         .card-content { padding: 12px 12px 10px; }
         .header { gap: 8px; }
-        h2 { font-size: 17px; }
         .current-block { gap: 5px; max-width: 64%; }
         .current { padding: 6px; column-gap: 3px; }
-        .current strong { font-size: 17px; }
-        .current span { font-size: 8px; }
-        .current-label { font-size: 9px; }
         .legend { gap: 6px 10px; margin-top: 9px; }
         .chart { flex-basis: 260px; min-height: 110px; }
         .tooltip { min-width: 166px; }

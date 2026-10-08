@@ -10,8 +10,11 @@ import {
   groupSelectedPeriods,
   isCheapestHoursEnabled,
   mergePriceSeries,
+  normalizeLineStyle,
+  normalizeLineWidth,
   normalizePoints,
   offsetPriceData,
+  rgbColorToCss,
   selectCheapestDuration,
   selectHighestDuration,
   splitByLocalDay,
@@ -57,6 +60,19 @@ test('cheapest hours is disabled unless configured with a positive value', () =>
   assert.equal(isCheapestHoursEnabled(false), false);
   assert.equal(isCheapestHoursEnabled(4), true);
   assert.equal(isCheapestHoursEnabled('4'), true);
+});
+
+test('line styling values are normalized for safe SVG rendering', () => {
+  assert.equal(normalizeLineStyle('solid', 'dashed'), 'solid');
+  assert.equal(normalizeLineStyle('dotted', 'solid'), 'dotted');
+  assert.equal(normalizeLineStyle('unknown', 'dashed'), 'dashed');
+  assert.equal(normalizeLineWidth('4.5'), 4.5);
+  assert.equal(normalizeLineWidth(0), 1);
+  assert.equal(normalizeLineWidth(12), 8);
+  assert.equal(normalizeLineWidth('invalid', 3.5), 3.5);
+  assert.equal(rgbColorToCss([25, 118, 210]), 'rgb(25, 118, 210)');
+  assert.equal(rgbColorToCss(undefined), null);
+  assert.equal(rgbColorToCss([300, 0, 0]), null);
 });
 
 test('selected quarter-hours are grouped into contiguous table periods', () => {
