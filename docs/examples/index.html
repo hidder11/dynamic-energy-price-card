@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dynamic Energy Price Card — real Tibber examples</title>
+  <style>
+    :root {
+      --primary-color: #03a9f4;
+      --primary-text-color: #e8eef3;
+      --secondary-text-color: #9eabb5;
+      --card-background-color: #17212b;
+      --secondary-background-color: #202d38;
+      --divider-color: rgba(255,255,255,.12);
+      --success-color: #34c995;
+      --error-color: #ff715f;
+      --ha-card-border-radius: 14px;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background: #0f171f;
+      color: var(--primary-text-color);
+    }
+    body { margin: 0; padding: 12px; }
+    main { max-width: 920px; height: calc(100vh - 44px); margin: 0 auto; }
+    @media (max-width: 520px) { main { height: calc(100vh - 24px); } }
+  </style>
+</head>
+<body>
+  <main><dynamic-energy-price-card id="card"></dynamic-energy-price-card></main>
+  <script type="module">
+    // Pin only this standalone example's clock, not the production card.
+    // 19:00 local time matches the approved screenshots (38.70 ct/kWh).
+    const RealDate = Date;
+    const snapshotNow = RealDate.parse('2026-10-08T19:00:00+02:00');
+    window.Date = class extends RealDate {
+      constructor(...args) { super(...(args.length ? args : [snapshotNow])); }
+      static now() { return snapshotNow; }
+    };
+    await import('../../dist/dynamic-energy-price-card.js');
+    if (!customElements.get('ha-card')) customElements.define('ha-card', class extends HTMLElement {
+      connectedCallback() {
+        this.style.display = 'block';
+        this.style.background = 'var(--card-background-color)';
+        this.style.borderRadius = 'var(--ha-card-border-radius)';
+        this.style.boxShadow = '0 8px 28px rgba(0,0,0,.15)';
+      }
+    });
+    const snapshot = await fetch('./tibber-2026-10-08.json').then(response => response.json());
+    window.exampleConfig = {
+      entity: 'sensor.tibber_prijzen', show_title: false,
+      cheapest_hours: 4, import_selection_mode: 'contiguous',
+      show_cheapest_table: true, tomorrow_after: 24,
+    };
+    window.exampleHass = {
+      language: 'en', locale: { language: 'en' },
+      config: { time_zone: snapshot.provenance.time_zone },
+      themes: { darkMode: true },
+      states: { 'sensor.tibber_prijzen': { attributes: { data: snapshot.data }, last_updated: snapshot.provenance.last_updated } },
+    };
+    const params = new URLSearchParams(location.search);
+    const custom = params.get('palette') === 'custom';
+    const light = params.get('theme') === 'light';
+    if (custom) Object.assign(window.exampleConfig, {
+      cheap_color: [130, 90, 240], normal_color: [50, 140, 210],
+      expensive_color: [225, 90, 125], import_favorable_color: [140, 100, 230],
+    });
+    if (light) {
+      for (const [key, value] of Object.entries({
+        '--primary-text-color': '#212121', '--secondary-text-color': '#666666',
+        '--card-background-color': '#ffffff', '--secondary-background-color': '#f1f3f5',
+        '--divider-color': 'rgba(0,0,0,.12)', '--success-color': '#19a974', '--error-color': '#e45c4f',
+      })) document.documentElement.style.setProperty(key, value);
+      document.documentElement.style.background = '#eef1f4';
+      window.exampleHass.themes.darkMode = false;
+    }
+    const card = document.querySelector('#card');
+    card.setConfig(window.exampleConfig);
+    card.hass = window.exampleHass;
+    window.exampleReady = true;
+  </script>
+</body>
+</html>

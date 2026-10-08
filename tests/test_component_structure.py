@@ -64,7 +64,7 @@ class CardSourceTests(unittest.TestCase):
         self.assertNotIn('id="cheapest-hatch"', card)
         self.assertNotIn('<div class="summary">', card)
         self.assertNotIn('${escapeHtml(availability)}', card)
-        self.assertIn('Goedkoopst</div>', card)
+        self.assertIn('this._t("Goedkoopst")', card)
         self.assertIn('show_cheapest_table: false', card)
         self.assertIn('const favorableTable =', card)
         self.assertIn('<table class="cheapest-table favorable-table"', card)
@@ -96,9 +96,9 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn("name: 'general_settings'", card)
         self.assertIn("name: 'import_settings'", card)
         self.assertIn("name: 'export_settings'", card)
-        self.assertIn("title: 'Algemeen'", card)
-        self.assertIn("title: 'Afname'", card)
-        self.assertIn("title: 'Teruglevering'", card)
+        self.assertIn('editorText("Algemeen")', card)
+        self.assertIn('editorText("Afname")', card)
+        self.assertIn('editorText("Teruglevering")', card)
         for field in (
             'import_line_style', 'import_line_width', 'import_line_color',
             'export_line_style', 'export_line_width', 'export_line_color',
@@ -116,13 +116,13 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn("--font-weight-medium: 500;", card)
         self.assertIn("--font-weight-strong: 600;", card)
         self.assertNotIn("font-weight: 650", card)
-        self.assertIn("export_price_offset: 'Correctie op terugleverprijs'", card)
+        self.assertIn('export_price_offset: "Correctie op terugleverprijs"', card)
         self.assertNotIn("export_price_offset: 'Verschil t.o.v. afname'", card)
         self.assertIn("graph_mode: 'import'", card)
         self.assertIn("current_price_mode: 'import'", card)
         self.assertIn("show_price_levels: true", card)
         self.assertIn("name: 'show_price_levels'", card)
-        self.assertIn("show_price_levels: 'Prijsgrenzen tonen'", card)
+        self.assertIn('show_price_levels: "Prijsgrenzen tonen"', card)
         self.assertIn("const showPriceLevels = this._config.show_price_levels !== false;", card)
         self.assertIn("const levelLines = showPriceLevels", card)
         self.assertIn("const levelLabels = showPriceLevels", card)
@@ -167,7 +167,7 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('const DEFAULT_CONFIG = Object.freeze({', card)
         self.assertIn('...DEFAULT_CONFIG,', card)
         fields = (
-            'graph_mode', 'current_price_mode', 'title', 'show_title',
+            'graph_mode', 'current_price_mode', 'show_title',
             'show_hover_line', 'show_average_line', 'show_price_levels',
             'tomorrow_after', 'cheap_price', 'normal_price', 'expensive_price',
             'cheapest_hours', 'import_selection_mode', 'import_minimum_duration',
@@ -192,10 +192,10 @@ class CardSourceTests(unittest.TestCase):
     def test_favorable_periods_share_one_semantic_table(self):
         card = CARD.read_text(encoding="utf-8")
         self.assertIn("this._periodTable(importPeriods, exportPeriods", card)
-        self.assertIn("const typeLabel = type === 'import' ? 'Afname' : 'Teruglevering';", card)
+        self.assertIn('const typeLabel = type === \'import\' ? this._t("Afname") : this._t("Teruglevering");', card)
         self.assertIn('class="period-type ${type}"', card)
-        self.assertIn('<h3>Gunstige momenten</h3>', card)
-        self.assertIn('<th>Moment</th>', card)
+        self.assertIn('<h3>${this._t("Gunstige momenten")}</h3>', card)
+        self.assertIn('<th>${this._t("Moment")}</th>', card)
         self.assertNotIn("this._periodTable('Goedkoopste afname'", card)
         self.assertNotIn("this._periodTable('Beste teruglevering'", card)
 
@@ -217,8 +217,8 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('const useCompactSummary =', card)
         self.assertIn('class="compact-summary"', card)
         self.assertIn('class="compact-current legend-series"', card)
-        self.assertIn("this._compactCurrentMetric('Afname'", card)
-        self.assertIn('${label} <span>nu</span>', card)
+        self.assertIn('this._compactCurrentMetric(this._t("Afname")', card)
+        self.assertIn('${label} <span>${this._t("nu")}</span>', card)
         self.assertIn('class="compact-context"', card)
         self.assertIn('.compact-summary {', card)
         self.assertIn('grid-template-columns: minmax(0, 1fr) auto;', card)
@@ -266,9 +266,9 @@ class CardSourceTests(unittest.TestCase):
             'export_selection_mode', 'export_minimum_duration',
         ):
             self.assertIn(f"name: '{field}'", card)
-        self.assertIn("{ value: 'individual', label: 'Losse kwartieren' }", card)
-        self.assertIn("{ value: 'contiguous', label: 'Eén aaneengesloten blok' }", card)
-        self.assertIn("{ value: 'minimum_blocks', label: 'Blokken met minimale duur' }", card)
+        self.assertIn('{ value: \'individual\', label: editorText("Losse kwartieren") }', card)
+        self.assertIn('{ value: \'contiguous\', label: editorText("Eén aaneengesloten blok") }', card)
+        self.assertIn('{ value: \'minimum_blocks\', label: editorText("Blokken met minimale duur") }', card)
         self.assertIn("import_selection_mode: 'individual'", card)
         self.assertIn("export_selection_mode: 'individual'", card)
         self.assertIn("import_minimum_duration: 30", card)

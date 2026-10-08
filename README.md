@@ -44,7 +44,9 @@ Replace `entity` with your price sensor. This example highlights the cheapest co
 
 ## Examples
 
-The opening preview and examples below use real Tibber tariff data from October 8, 2026. They were captured from the built card on a standalone Home Assistant-style surface, not a live dashboard. Each uses import only, a hidden title, and one continuous four-hour selection. Default and custom-color examples use the same data and layout.
+The opening preview and examples below use real Tibber tariff data from October 8, 2026: 96 quarter-hour intervals read from `sensor.tibber_prijzen`. They were captured from the built card on a standalone Home Assistant-style surface, not a live dashboard. Card labels are English. Each uses import only, a hidden title, and the same continuous four-hour selection (12:15–16:15). Default and custom-color examples use the same data, layout and fixed example clock (19:00 Europe/Amsterdam). The one-day snapshot omits tomorrow; `tomorrow_after: 24` suppresses tomorrow warnings in these examples only. The normal default remains `14`.
+
+The reproducible snapshot and standalone viewer are in `docs/examples/`; the deliberately synthetic stress-test data stays separate in `qa/`.
 
 ### Original palette — compact light mobile
 
@@ -67,6 +69,7 @@ show_title: false
 cheapest_hours: 4
 import_selection_mode: contiguous
 show_cheapest_table: true
+tomorrow_after: 24 # One-day README example only; normal default is 14.
 cheap_color: [130, 90, 240]
 normal_color: [50, 140, 210]
 expensive_color: [225, 90, 125]
@@ -154,6 +157,12 @@ export_best_hours: 3
 show_export_table: true
 ```
 
+## Language
+
+The card automatically follows the Home Assistant user's frontend language: Dutch for `nl` (including regional variants), and English for English or any unsupported language. This covers the native visual editor, selector options and helper text, chart labels, tables, hover details, errors, and screen-reader announcements. Dates, decimal separators and duration labels follow the same language; times retain a compact 24-hour format in Home Assistant's configured timezone.
+
+The default title is translated automatically. A title explicitly entered in YAML or the editor is always preserved literally—even if it matches an old default title. Remove `title` to restore the automatic title. No language setting or nested configuration is required.
+
 ## Settings reference
 
 | Option | Required | Default | Description |
@@ -163,7 +172,7 @@ show_export_table: true
 | `export_price_offset` | No | — | Signed EUR/kWh correction applied to the export entity prices. |
 | `graph_mode` | No | `import` | Graph series: `import`, `both`, or `export`. |
 | `current_price_mode` | No | `import` | Current metrics: `import`, `both`, `export`, or `none`. |
-| `title` | No | `Dynamische energieprijzen` | Card title. |
+| `title` | No | Localized automatically | `Dynamic energy prices` / `Dynamische energieprijzen`. Explicit text is preserved literally. |
 | `show_title` | No | `true` | Shows the title. When hidden, active favorable-period context uses its position. |
 | `show_hover_line` | No | `true` | Shows a guide line for the active tooltip interval. |
 | `show_average_line` | No | `false` | Shows a separately labelled average for each visible graph series. |
@@ -276,7 +285,7 @@ The build writes the standalone HACS bundle to:
 dist/dynamic-energy-price-card.js
 ```
 
-Do not edit the generated bundle directly.
+Do not edit the generated bundle directly. Browser localization checks and screenshot reproduction are documented in `docs/QA-LOCALIZATION.md`; run `window.checkLocalization()` from the standalone `/qa/` viewer. Serve the repository root so both `qa/` and `docs/examples/` can load the built bundle.
 
 ## License
 
