@@ -102,6 +102,32 @@ export function rgbColorToCss(value) {
   return `rgb(${channels.join(', ')})`;
 }
 
+export function countMissingIntervals(points, intervalMinutes = inferIntervalMinutes(points)) {
+  const intervalMs = Number(intervalMinutes) * 60000;
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0 || points.length < 2) return 0;
+  const timestamps = [...new Set(points.map((point) => Number(point.timestamp)).filter(Number.isFinite))]
+    .sort((left, right) => left - right);
+  let missing = 0;
+  for (let index = 1; index < timestamps.length; index += 1) {
+    const steps = Math.round((timestamps[index] - timestamps[index - 1]) / intervalMs);
+    if (steps > 1) missing += steps - 1;
+  }
+  return missing;
+}
+
+export function relativeAgeLabel(value, now = new Date()) {
+  const timestamp = new Date(value).getTime();
+  const nowTimestamp = new Date(now).getTime();
+  if (!Number.isFinite(timestamp) || !Number.isFinite(nowTimestamp)) return 'onbekend';
+  const minutes = Math.max(0, Math.floor((nowTimestamp - timestamp) / 60000));
+  if (minutes < 1) return 'zojuist';
+  if (minutes < 60) return `${minutes} min geleden`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} uur geleden`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? 'dag' : 'dagen'} geleden`;
+}
+
 export function groupSelectedPeriods(points, selected, intervalMinutes) {
   const intervalMs = Number(intervalMinutes) * 60000;
   const periods = [];

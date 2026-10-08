@@ -13,6 +13,7 @@ Existing configurations remain import-only by default. Export prices come from a
 - Independent line style (`solid`, `dashed`, or `dotted`), thickness, and optional fixed RGB color for import and export
 - Optional per-series area fill with an independent RGB color and configurable vertical fade
 - Clickable legend items temporarily show or hide each graph series
+- Compact source-freshness, tomorrow-availability, and missing-interval status
 - Shared numeric thresholds with reversed export meaning: high export prices are green, low export prices are red
 - Real tariff values are preserved; export prices are not sign-inverted
 - Export source from a dedicated sensor; `export_price_offset` adjusts that export series
@@ -21,9 +22,11 @@ Existing configurations remain import-only by default. Export prices come from a
 - Hover, touch, and keyboard tooltips for every visible series, including safe missing-value display
 - Optional per-series average lines with unambiguous labels
 - Lowest import periods and highest export periods selected independently per day as loose intervals, one contiguous block, or blocks with a configurable minimum duration
+- Adjacent favorable intervals merge into quiet bottom/import and top/export time rails
 - Best export periods use a consistent blue highlight in light and dark themes
 - One optional table for favorable import and export periods, with explicit colored type labels
 - Native Home Assistant visual editor with expandable **General**, **Import**, and **Export** groups
+- Progressive native editor subgroups for favorable periods and line/fill appearance
 - Native card sizing in Home Assistant Sections views
 - Responsive current-price metrics and chart from 320 px card width
 - No external runtime dependencies

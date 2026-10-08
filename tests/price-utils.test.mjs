@@ -4,6 +4,7 @@ import {
   calculateAveragePrice,
   classifyPrice,
   classifyPriceLevel,
+  countMissingIntervals,
   createPriceTicks,
   findCurrentPoint,
   getVisiblePoints,
@@ -15,6 +16,7 @@ import {
   normalizePoints,
   normalizeSelectionMode,
   offsetPriceData,
+  relativeAgeLabel,
   rgbColorToCss,
   selectCheapestDuration,
   selectHighestDuration,
@@ -86,6 +88,20 @@ test('selected quarter-hours are grouped into contiguous table periods', () => {
   assert.equal(periods[0].endTimestamp, points[1].timestamp + 15 * 60000);
   assert.equal(periods[1].startTimestamp, points[4].timestamp);
   assert.equal(periods[1].endTimestamp, points[6].timestamp + 15 * 60000);
+});
+
+test('missing interval count reports only gaps inside the observed range', () => {
+  const points = normalizePoints(quarterDay('2026-10-07').slice(0, 8), zone);
+  assert.equal(countMissingIntervals(points, 15), 0);
+  assert.equal(countMissingIntervals(points.filter((_, index) => ![2, 3, 6].includes(index)), 15), 3);
+});
+
+test('source age uses compact Dutch labels', () => {
+  const now = new Date('2026-10-08T12:00:00Z');
+  assert.equal(relativeAgeLabel('2026-10-08T11:59:30Z', now), 'zojuist');
+  assert.equal(relativeAgeLabel('2026-10-08T11:43:00Z', now), '17 min geleden');
+  assert.equal(relativeAgeLabel('2026-10-08T09:50:00Z', now), '2 uur geleden');
+  assert.equal(relativeAgeLabel(undefined, now), 'onbekend');
 });
 
 test('tomorrow is hidden before 14:00 and appears at 14:00 local time', () => {

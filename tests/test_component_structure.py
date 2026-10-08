@@ -199,6 +199,37 @@ class CardSourceTests(unittest.TestCase):
         self.assertNotIn("this._periodTable('Goedkoopste afname'", card)
         self.assertNotIn("this._periodTable('Beste teruglevering'", card)
 
+    def test_favorable_intervals_render_as_merged_top_and_bottom_rails(self):
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('const selectionRailRects =', card)
+        self.assertIn("groupSelectedPeriods(importPoints, importSelected, intervalMinutes)", card)
+        self.assertIn("groupSelectedPeriods(exportPoints, exportSelected, exportIntervalMinutes)", card)
+        self.assertIn("'import-selection-rail'", card)
+        self.assertIn("'export-selection-rail'", card)
+        self.assertIn('const importRailY = PLOT.top + plotHeight - railHeight;', card)
+        self.assertIn('const exportRailY = PLOT.top;', card)
+        self.assertNotIn('class="cheapest-slot"', card)
+        self.assertNotIn('class="export-best-slot"', card)
+
+    def test_compact_status_and_mobile_header_preserve_the_table(self):
+        card = CARD.read_text(encoding="utf-8")
+        self.assertIn('class="data-status', card)
+        self.assertIn('relativeAgeLabel(', card)
+        self.assertIn('countMissingIntervals(', card)
+        self.assertIn('.header { display: grid;', card)
+        self.assertIn('.current-block { grid-column: 1 / -1;', card)
+        self.assertIn('<table class="cheapest-table favorable-table"', card)
+        self.assertNotIn('mobile-period-card', card)
+
+    def test_native_editor_uses_flat_expandable_subgroups(self):
+        card = CARD.read_text(encoding="utf-8")
+        for group in (
+            'import_favorable_settings', 'import_appearance_settings',
+            'export_favorable_settings', 'export_appearance_settings',
+        ):
+            self.assertIn(f"name: '{group}'", card)
+        self.assertGreaterEqual(card.count('flatten: true'), 7)
+
     def test_import_and_export_support_all_favorable_period_selection_modes(self):
         card = CARD.read_text(encoding="utf-8")
         for field in (
