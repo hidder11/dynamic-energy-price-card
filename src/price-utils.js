@@ -139,6 +139,8 @@ export function groupSelectedPeriods(points, selected, intervalMinutes) {
     const last = periods.at(-1);
     const endTimestamp = point.timestamp + intervalMs;
     if (last && last.dayKey === point.dayKey && last.endTimestamp === point.timestamp) {
+      last.averagePrice = (last.averagePrice * last.durationMinutes + point.price * Number(intervalMinutes))
+        / (last.durationMinutes + Number(intervalMinutes));
       last.endTimestamp = endTimestamp;
       last.durationMinutes += Number(intervalMinutes);
     } else {
@@ -147,6 +149,7 @@ export function groupSelectedPeriods(points, selected, intervalMinutes) {
         startTimestamp: point.timestamp,
         endTimestamp,
         durationMinutes: Number(intervalMinutes),
+        averagePrice: point.price,
       });
     }
   }

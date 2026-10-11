@@ -67,7 +67,7 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn('this._t("Goedkoopst")', card)
         self.assertIn('show_cheapest_table: false', card)
         self.assertIn('const favorableTable =', card)
-        self.assertIn('<table class="cheapest-table favorable-table"', card)
+        self.assertIn('<table class="cheapest-table favorable-table', card)
         self.assertIn("name: 'show_cheapest_table'", card)
         self.assertIn('show_hover_line: true', card)
         self.assertIn('show_average_line: false', card)
@@ -235,7 +235,7 @@ class CardSourceTests(unittest.TestCase):
 
     def test_compact_redesign_preserves_the_table(self):
         card = CARD.read_text(encoding="utf-8")
-        self.assertIn('<table class="cheapest-table favorable-table"', card)
+        self.assertIn('<table class="cheapest-table favorable-table', card)
         self.assertNotIn('mobile-period-card', card)
 
     def test_tooltip_is_offset_away_from_the_selected_price_point(self):

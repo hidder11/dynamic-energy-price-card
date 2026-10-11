@@ -157,6 +157,16 @@ export_best_hours: 3
 show_export_table: true
 ```
 
+### Average price per favorable period
+
+Enable **Average price in table** under **General** in the visual editor, or add:
+
+```yaml
+show_period_average: true
+```
+
+This adds an **Avg. price** column in ct/kWh to the favorable-period table. Each row averages only the price intervals inside that period, separately for import and export. Export averages include `export_price_offset`. With the supported equal-duration intervals, each interval has equal weight. The option defaults to `false`, does not enable a table by itself, and is independent of `show_average_line`. On mobile, the optional six-column table uses compact spacing; very narrow cards can scroll the table horizontally without widening the dashboard.
+
 ## Language
 
 The card automatically follows the Home Assistant user's frontend language: Dutch for `nl` (including regional variants), and English for English or any unsupported language. This covers the native visual editor, selector options and helper text, chart labels, tables, hover details, errors, and screen-reader announcements. Dates, decimal separators and duration labels follow the same language; times retain a compact 24-hour format in Home Assistant's configured timezone.
@@ -176,6 +186,7 @@ The default title is translated automatically. A title explicitly entered in YAM
 | `show_title` | No | `true` | Shows the title. When hidden, active favorable-period context uses its position. |
 | `show_hover_line` | No | `true` | Shows a guide line for the active tooltip interval. |
 | `show_average_line` | No | `false` | Shows a separately labelled average for each visible graph series. |
+| `show_period_average` | No | `false` | Adds the average price of each favorable period to the table in ct/kWh, for both tariffs. |
 | `show_price_levels` | No | `true` | Shows the cheap, normal, and expensive reference lines and their price labels. |
 | `import_line_style` | No | `solid` | Import line style: `solid`, `dashed`, or `dotted`. |
 | `import_line_width` | No | `3.5` | Import line thickness from 1 to 8 px. |

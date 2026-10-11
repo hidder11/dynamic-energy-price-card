@@ -140,6 +140,8 @@ function groupSelectedPeriods(points, selected, intervalMinutes) {
     const last = periods.at(-1);
     const endTimestamp = point.timestamp + intervalMs;
     if (last && last.dayKey === point.dayKey && last.endTimestamp === point.timestamp) {
+      last.averagePrice = (last.averagePrice * last.durationMinutes + point.price * Number(intervalMinutes))
+        / (last.durationMinutes + Number(intervalMinutes));
       last.endTimestamp = endTimestamp;
       last.durationMinutes += Number(intervalMinutes);
     } else {
@@ -148,6 +150,7 @@ function groupSelectedPeriods(points, selected, intervalMinutes) {
         startTimestamp: point.timestamp,
         endTimestamp,
         durationMinutes: Number(intervalMinutes),
+        averagePrice: point.price,
       });
     }
   }
@@ -323,6 +326,9 @@ const ENGLISH = Object.freeze({
   "Titel tonen": "Show title",
   "Verticale hoverlijn": "Vertical hover line",
   "Gemiddelde prijslijn": "Average price line",
+  "Gemiddelde prijs in tabel": "Average price in table",
+  "Gem. prijs": "Avg. price",
+  "Toont de gemiddelde prijs per periode in de afname- en teruglevertabel, in ct/kWh.": "Shows the average price per period in the import and export table, in ct/kWh.",
   "Prijsgrenzen tonen": "Show price thresholds",
   "Lijnstijl": "Line style",
   "Lijndikte": "Line width",
@@ -466,6 +472,7 @@ const DEFAULT_CONFIG = Object.freeze({
   show_title: true,
   show_hover_line: true,
   show_average_line: false,
+  show_period_average: false,
   show_price_levels: true,
   tomorrow_after: 14,
   cheap_price: 0.15,
@@ -596,6 +603,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_title: "Titel tonen",
       show_hover_line: "Verticale hoverlijn",
       show_average_line: "Gemiddelde prijslijn",
+      show_period_average: "Gemiddelde prijs in tabel",
       show_price_levels: "Prijsgrenzen tonen",
       import_line_style: "Lijnstijl",
       import_line_width: "Lijndikte",
@@ -670,6 +678,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
             { name: 'show_title', default: DEFAULT_CONFIG.show_title, selector: { boolean: {} } },
             { name: 'show_hover_line', default: DEFAULT_CONFIG.show_hover_line, selector: { boolean: {} } },
             { name: 'show_average_line', default: DEFAULT_CONFIG.show_average_line, selector: { boolean: {} } },
+            { name: 'show_period_average', default: DEFAULT_CONFIG.show_period_average, selector: { boolean: {} } },
             { name: 'show_price_levels', default: DEFAULT_CONFIG.show_price_levels, selector: { boolean: {} } },
             { name: 'tomorrow_after', default: DEFAULT_CONFIG.tomorrow_after, required: true, selector: numberSelector('uur') },
             { name: 'cheap_price', default: DEFAULT_CONFIG.cheap_price, required: true, selector: thresholdSelector },
@@ -768,6 +777,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         show_title: "Verberg de titel om actieve gunstige-urencontext op die plek te tonen.",
         show_hover_line: "Toont een verticale hulplijn bij het actieve prijsinterval.",
         show_average_line: "Toont per zichtbare tariefreeks een gelabeld gemiddelde.",
+        show_period_average: "Toont de gemiddelde prijs per periode in de afname- en teruglevertabel, in ct/kWh.",
         show_price_levels: "Toont de lijnen en prijslabels voor goedkoop, normaal en duur.",
         import_line_style: "Kies doorgetrokken, gestreept of gestippeld.",
         import_line_width: "Lijndikte van 1 tot 8 pixels.",
@@ -1261,15 +1271,18 @@ class DynamicEnergyPriceCard extends HTMLElement {
       ...importPeriods.map((period) => ({ ...period, type: 'import' })),
       ...exportPeriods.map((period) => ({ ...period, type: 'export' })),
     ].sort((left, right) => left.startTimestamp - right.startTimestamp || left.type.localeCompare(right.type));
+    const showAverage = this._config.show_period_average === true;
+    const averageHeader = showAverage ? `<th class="period-average">${this._t("Gem. prijs")}<br><span>ct/kWh</span></th>` : '';
     const rows = periods.map((period) => {
       const { type } = period;
       const typeLabel = type === 'import' ? this._t("Afname") : this._t("Teruglevering");
       const duration = formatDuration(period.durationMinutes, this._language);
       const day = period.dayKey === todayKey ? this._t("Vandaag") : period.dayKey === tomorrowKey ? this._t("Morgen") : period.dayKey;
-      return `<tr><td>${day}</td><td><span class="period-type ${type}">${typeLabel}</span></td><td>${this._formatTime(period.startTimestamp, timeZone)}</td><td>${this._formatTime(period.endTimestamp, timeZone)}</td><td>${duration}</td></tr>`;
+      const averageCell = showAverage ? `<td class="period-average">${Number.isFinite(period.averagePrice) ? this._formatPrice(period.averagePrice) : '—'}</td>` : '';
+      return `<tr><td>${day}</td><td><span class="period-type ${type}">${typeLabel}</span></td><td>${this._formatTime(period.startTimestamp, timeZone)}</td><td>${this._formatTime(period.endTimestamp, timeZone)}</td><td>${duration}</td>${averageCell}</tr>`;
     }).join('');
     return `<section class="price-table-wrap"><h3>${this._t("Gunstige momenten")}</h3>
-      <table class="cheapest-table favorable-table"><thead><tr><th>${this._t("Dag")}</th><th>${this._t("Moment")}</th><th>${this._t("Start")}</th><th>${this._t("Einde")}</th><th>${this._t("Duur")}</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="cheapest-table favorable-table${showAverage ? ' with-average' : ''}"><thead><tr><th>${this._t("Dag")}</th><th>${this._t("Moment")}</th><th>${this._t("Start")}</th><th>${this._t("Einde")}</th><th>${this._t("Duur")}</th>${averageHeader}</tr></thead><tbody>${rows}</tbody></table>
     </section>`;
   }
 
@@ -1612,6 +1625,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
         .data-status { margin-top: 2px; }
         .chart { flex-basis: 260px; min-height: 110px; }
         .tooltip { min-width: 166px; }
+        .cheapest-table.with-average { font-size: 11px; }
+        .cheapest-table.with-average th, .cheapest-table.with-average td { padding-inline: 1px; }
+        .cheapest-table.with-average .period-type { padding-inline: 3px; }
       }
       @media (max-width: 360px) {
         .current-block { justify-content: stretch; }
