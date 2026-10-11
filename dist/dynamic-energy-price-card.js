@@ -1272,17 +1272,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
       ...exportPeriods.map((period) => ({ ...period, type: 'export' })),
     ].sort((left, right) => left.startTimestamp - right.startTimestamp || left.type.localeCompare(right.type));
     const showAverage = this._config.show_period_average === true;
-    const averageHeader = showAverage ? `<th class="period-average">${this._t("Gem. prijs")}<br><span>ct/kWh</span></th>` : '';
+    const averageHeader = showAverage ? `<th class="period-average">${this._t("Gem. prijs")}</th>` : '';
     const rows = periods.map((period) => {
       const { type } = period;
       const typeLabel = type === 'import' ? this._t("Afname") : this._t("Teruglevering");
       const duration = formatDuration(period.durationMinutes, this._language);
       const day = period.dayKey === todayKey ? this._t("Vandaag") : period.dayKey === tomorrowKey ? this._t("Morgen") : period.dayKey;
       const averageCell = showAverage ? `<td class="period-average">${Number.isFinite(period.averagePrice) ? this._formatPrice(period.averagePrice) : '—'}</td>` : '';
-      return `<tr><td>${day}</td><td><span class="period-type ${type}">${typeLabel}</span></td><td>${this._formatTime(period.startTimestamp, timeZone)}</td><td>${this._formatTime(period.endTimestamp, timeZone)}</td><td>${duration}</td>${averageCell}</tr>`;
+      return `<tr><td>${day}</td><td><span class="period-type ${type}">${typeLabel}</span></td><td>${this._formatTime(period.startTimestamp, timeZone)}</td><td>${this._formatTime(period.endTimestamp, timeZone)}</td><td class="period-duration">${duration}</td>${averageCell}</tr>`;
     }).join('');
-    return `<section class="price-table-wrap"><h3>${this._t("Gunstige momenten")}</h3>
-      <table class="cheapest-table favorable-table${showAverage ? ' with-average' : ''}"><thead><tr><th>${this._t("Dag")}</th><th>${this._t("Moment")}</th><th>${this._t("Start")}</th><th>${this._t("Einde")}</th><th>${this._t("Duur")}</th>${averageHeader}</tr></thead><tbody>${rows}</tbody></table>
+    return `<section class="price-table-wrap"><h3>${this._t("Gunstige momenten")}${showAverage ? '<span class="table-unit">ct/kWh</span>' : ''}</h3>
+      <table class="cheapest-table favorable-table${showAverage ? ' with-average' : ''}"><thead><tr><th>${this._t("Dag")}</th><th>${this._t("Moment")}</th><th>${this._t("Start")}</th><th>${this._t("Einde")}</th><th class="period-duration">${this._t("Duur")}</th>${averageHeader}</tr></thead><tbody>${rows}</tbody></table>
     </section>`;
   }
 
@@ -1598,11 +1598,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .tooltip-series.dotted { border-top-style: dotted; }
       .price-table-wrap { flex: 0 1 auto; min-height: 0; max-height: 190px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--divider-color); overflow: auto; }
       .price-table-wrap h3 { margin: 0 0 4px; font-size: var(--font-size-label); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
+      .table-unit { float: right; color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-medium); }
       .cheapest-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-label); line-height: var(--line-height-normal); font-variant-numeric: tabular-nums; }
       .cheapest-table th, .cheapest-table td { padding: 6px 8px; text-align: left; white-space: nowrap; }
       .cheapest-table th { color: var(--secondary-text-color); font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); text-transform: uppercase; letter-spacing: 0.04em; }
       .cheapest-table tbody tr { border-top: 1px solid var(--divider-color); }
-      .cheapest-table td:last-child, .cheapest-table th:last-child { text-align: right; }
+      .cheapest-table .period-duration, .cheapest-table .period-average { text-align: right; }
       .period-type { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 999px; font-size: var(--font-size-meta); font-weight: var(--font-weight-strong); }
       .period-type.import { color: var(--import-best); background: var(--cheapest-fill); }
       .period-type.export { color: var(--export-best); background: var(--export-best-fill); }

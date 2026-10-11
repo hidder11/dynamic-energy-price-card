@@ -35,6 +35,24 @@ test('period averages do not bridge missing intervals or local day boundaries', 
   assert.deepEqual(periods.map(p => p.averagePrice), [.1, .2, -.3]);
 });
 
+test('table headings stay single-line and duration alignment is independent of the average option', () => {
+  const card = new Card();
+  const periods = utils.groupSelectedPeriods(points, new Set([points[0].timestamp]), 15);
+  for (const enabled of [false, true]) {
+    card.setConfig({ entity: 'sensor.prices', show_period_average: enabled });
+    const html = card._periodTable(periods, [], 'Europe/Amsterdam', '2026-10-11', '2026-10-12');
+    assert.match(html, /<th class="period-duration">Duration<\/th>/);
+    assert.match(html, /<td class="period-duration">15 min<\/td>/);
+    assert.doesNotMatch(html, /<br>/);
+    if (enabled) {
+      assert.match(html, /<th class="period-average">Avg\. price<\/th>/);
+      assert.match(html, /<span class="table-unit">ct\/kWh<\/span>/);
+    } else assert.doesNotMatch(html, /table-unit/);
+  }
+  assert.match(card._styles(), /\.cheapest-table \.period-duration, \.cheapest-table \.period-average \{ text-align: right; \}/);
+  assert.doesNotMatch(card._styles(), /\.cheapest-table (?:td|th):last-child/);
+});
+
 test('optional average column is off by default and localizes import and corrected export prices', () => {
   const card = new Card();
   card.setConfig({ entity: 'sensor.prices' });

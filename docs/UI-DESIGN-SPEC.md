@@ -65,6 +65,10 @@ De card volgt automatisch de frontendtaal van de Home Assistant-gebruiker: `nl` 
 ## Optional semantic color customization (approved)
 Preserve all existing default colors, opacity, layout and interactions. Optional flat RGB keys `cheap_color`, `normal_color`, `expensive_color`, `zero_color`, `negative_color` override the shared price semantics. General settings contain a named, flattened native expandable `Prijskleuren` subgroup. Favorable-period subgroups expose independent `import_favorable_color` and `export_favorable_color`; bands, favorable badges, legend and table labels use these independently of price classification. Empty values restore automatic/theme-derived defaults, including import success green and explicit export blue. Fixed line and area-fill settings retain precedence. Black RGB and false/zero settings remain valid. No release or live install is in scope.
 
+## Optional average-column table alignment
+
+Keep every column heading on one baseline. Show the average-price unit once beside the table section heading, not on a second header line. Use semantic classes so Duration remains right-aligned with the average column both enabled and disabled; Avg. price is right-aligned as well. Preserve the compact table, graph, calculations and user configuration. Verify against the supplied light-mobile screenshot, one-period and multiple-period rows, Dutch/English, desktop/mobile, and the disabled option.
+
 ## Open decisions
 Geen blokkerende ontwerpbeslissingen.
 

@@ -194,7 +194,7 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn("this._periodTable(importPeriods, exportPeriods", card)
         self.assertIn('const typeLabel = type === \'import\' ? this._t("Afname") : this._t("Teruglevering");', card)
         self.assertIn('class="period-type ${type}"', card)
-        self.assertIn('<h3>${this._t("Gunstige momenten")}</h3>', card)
+        self.assertIn('<h3>${this._t("Gunstige momenten")}', card)
         self.assertIn('<th>${this._t("Moment")}</th>', card)
         self.assertNotIn("this._periodTable('Goedkoopste afname'", card)
         self.assertNotIn("this._periodTable('Beste teruglevering'", card)

@@ -165,7 +165,7 @@ Enable **Average price in table** under **General** in the visual editor, or add
 show_period_average: true
 ```
 
-This adds an **Avg. price** column in ct/kWh to the favorable-period table. Each row averages only the price intervals inside that period, separately for import and export. Export averages include `export_price_offset`. With the supported equal-duration intervals, each interval has equal weight. The option defaults to `false`, does not enable a table by itself, and is independent of `show_average_line`. On mobile, the optional six-column table uses compact spacing; very narrow cards can scroll the table horizontally without widening the dashboard.
+This adds an **Avg. price** column in ct/kWh to the favorable-period table. The unit appears beside the table title so all column headings stay on one line; duration and average values align to the right. Each row averages only the price intervals inside that period, separately for import and export. Export averages include `export_price_offset`. With the supported equal-duration intervals, each interval has equal weight. The option defaults to `false`, does not enable a table by itself, and is independent of `show_average_line`. On mobile, the optional six-column table uses compact spacing; very narrow cards can scroll the table horizontally without widening the dashboard.
 
 ## Language
 
