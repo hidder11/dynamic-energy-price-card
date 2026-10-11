@@ -1,0 +1,128 @@
+[
+  {
+    "width": 960,
+    "checks": 257,
+    "baselineChecks": 15,
+    "modes": [
+      "import",
+      "export",
+      "both"
+    ],
+    "languages": [
+      "en",
+      "nl"
+    ],
+    "tableOverflow": false,
+    "chartWidth": 888,
+    "actualIntervals": 84,
+    "validIntervals": 74,
+    "source": "history",
+    "cadence": 15,
+    "theme": "dark"
+  },
+  {
+    "width": 960,
+    "checks": 257,
+    "baselineChecks": 15,
+    "modes": [
+      "import",
+      "export",
+      "both"
+    ],
+    "languages": [
+      "en",
+      "nl"
+    ],
+    "tableOverflow": false,
+    "chartWidth": 888,
+    "actualIntervals": 84,
+    "validIntervals": 74,
+    "source": "history",
+    "cadence": 15,
+    "theme": "light"
+  },
+  {
+    "width": 390,
+    "checks": 257,
+    "baselineChecks": 15,
+    "modes": [
+      "import",
+      "export",
+      "both"
+    ],
+    "languages": [
+      "en",
+      "nl"
+    ],
+    "tableOverflow": false,
+    "chartWidth": 342,
+    "actualIntervals": 84,
+    "validIntervals": 74,
+    "source": "history",
+    "cadence": 15,
+    "theme": "dark"
+  },
+  {
+    "width": 390,
+    "checks": 257,
+    "baselineChecks": 15,
+    "modes": [
+      "import",
+      "export",
+      "both"
+    ],
+    "languages": [
+      "en",
+      "nl"
+    ],
+    "tableOverflow": false,
+    "chartWidth": 342,
+    "actualIntervals": 84,
+    "validIntervals": 74,
+    "source": "history",
+    "cadence": 15,
+    "theme": "light"
+  },
+  {
+    "width": 320,
+    "checks": 257,
+    "baselineChecks": 15,
+    "modes": [
+      "import",
+      "export",
+      "both"
+    ],
+    "languages": [
+      "en",
+      "nl"
+    ],
+    "tableOverflow": true,
+    "chartWidth": 272,
+    "actualIntervals": 84,
+    "validIntervals": 74,
+    "source": "history",
+    "cadence": 15,
+    "theme": "dark"
+  },
+  {
+    "width": 320,
+    "checks": 257,
+    "baselineChecks": 15,
+    "modes": [
+      "import",
+      "export",
+      "both"
+    ],
+    "languages": [
+      "en",
+      "nl"
+    ],
+    "tableOverflow": true,
+    "chartWidth": 272,
+    "actualIntervals": 84,
+    "validIntervals": 74,
+    "source": "history",
+    "cadence": 15,
+    "theme": "light"
+  }
+]

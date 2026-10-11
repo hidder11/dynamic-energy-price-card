@@ -1,3 +1,61 @@
+// Observed boundary deltas only: never interpolate a meter or split hourly energy.
+export function consumptionFromHistory(history, start, end, intervalMinutes, now = Date.now()) {
+  const step = intervalMinutes * 60000;
+  if (![15, 60].includes(intervalMinutes) || !Array.isArray(history)) return [];
+  const samples = history.map(row => ({
+    timestamp: Date.parse(row.last_updated ?? row.last_changed),
+    value: row.state === null || row.state === '' ? NaN : Number(row.state),
+  })).filter(row => Number.isFinite(row.timestamp)).sort((a, b) => a.timestamp - b.timestamp);
+  const points = [];
+  let cursor = -1;
+  for (let timestamp = start; timestamp + step <= Math.min(end, now); timestamp += step) {
+    while (cursor + 1 < samples.length && samples[cursor + 1].timestamp <= timestamp) cursor++;
+    const first = cursor;
+    while (cursor + 1 < samples.length && samples[cursor + 1].timestamp <= timestamp + step) cursor++;
+    const last = cursor;
+    const a = samples[first];
+    const b = samples[last];
+    let valid = a && b && timestamp - a.timestamp <= 300000 && timestamp + step - b.timestamp <= 300000;
+    for (let i = first; valid && i <= last; i++) {
+      const sample = samples[i];
+      valid = Number.isFinite(sample.value) && sample.value >= 0
+        && (i === first || (sample.value >= samples[i - 1].value && sample.timestamp - samples[i - 1].timestamp <= 300000));
+    }
+    points.push({ timestamp, endTimestamp: timestamp + step, energy: valid ? b.value - a.value : null });
+  }
+  return points;
+}
+
+// HA recorder change is already reset-normalized and expressed in requested kWh.
+export function consumptionFromStatistics(rows, start, end, now = Date.now()) {
+  if (!Array.isArray(rows)) return [];
+  const byStart = new Map(rows.map(row => [row.start, row]));
+  const points = [];
+  // Hour boundaries in absolute time; do not turn these into quarter-hour samples.
+  for (let timestamp = Math.ceil(start / 3600000) * 3600000; timestamp + 3600000 <= Math.min(end, now); timestamp += 3600000) {
+    const row = byStart.get(timestamp);
+    const valid = row?.end === timestamp + 3600000 && typeof row.change === 'number' && Number.isFinite(row.change) && row.change >= 0;
+    points.push({ timestamp, endTimestamp: timestamp + 3600000, energy: valid ? row.change : null });
+  }
+  return points;
+}
+
+// Overlay-only placement: preserve the established price-only tooltip geometry.
+export function placeEnergyTooltip(width, height, boxWidth, boxHeight, anchorX, anchorY, markers) {
+  const edge = 4;
+  const gap = 12;
+  const clamp = (value, max) => Math.max(edge, Math.min(max - edge, value));
+  const xs = [anchorX + gap, anchorX - boxWidth - gap, clamp(anchorX - boxWidth / 2, width - boxWidth), edge, width - boxWidth - edge];
+  const ys = [anchorY + gap, anchorY - boxHeight - gap, ...markers.flatMap(m => [m.bottom + gap, m.top - boxHeight - gap]), edge, height - boxHeight - edge];
+  for (const left of xs) {
+    for (const top of ys) {
+      if (left < edge || top < edge || left + boxWidth > width - edge || top + boxHeight > height - edge) continue;
+      if (markers.every(m => left + boxWidth <= m.left - 4 || left >= m.right + 4 || top + boxHeight <= m.top - 4 || top >= m.bottom + 4)) return { left, top };
+    }
+  }
+  return { left: clamp(anchorX - boxWidth / 2, width - boxWidth), top: clamp(anchorY - boxHeight / 2, height - boxHeight) };
+}
+
 export function zonedParts(value, timeZone) {
   const date = value instanceof Date ? value : new Date(value);
   const parts = new Intl.DateTimeFormat('en-GB', {

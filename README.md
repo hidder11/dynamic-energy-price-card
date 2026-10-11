@@ -12,6 +12,7 @@ A compact Home Assistant dashboard card for dynamic electricity tariffs. View th
 - **Choose useful time blocks:** select individual intervals, one continuous block, or multiple blocks with a minimum duration.
 - **See today and tomorrow:** show available upcoming prices, the current price, and a clear Now marker.
 - **Inspect any interval:** use hover, touch, or keyboard controls to read prices.
+- **Compare actual grid import:** optionally overlay measured kWh per completed interval with its own scale and subtle line.
 - **Make it your own:** customize price colors, period highlights, line styles, and optional fills—or keep the original appearance.
 - **Keep your dashboard compact:** use a responsive chart, optional period table, and Home Assistant's native visual editor and Sections sizing.
 
@@ -167,6 +168,36 @@ show_period_average: true
 
 This adds an **Avg. price** column in ct/kWh to the favorable-period table. The unit appears beside the table title so all column headings stay on one line; duration and average values align to the right. Each row averages only the price intervals inside that period, separately for import and export. Export averages include `export_price_offset`. With the supported equal-duration intervals, each interval has equal weight. The option defaults to `false`, does not enable a table by itself, and is independent of `show_average_line`. On mobile, the optional six-column table uses compact spacing; very narrow cards can scroll the table horizontally without widening the dashboard.
 
+### Grid-import energy per interval (optional)
+
+Compare recorded **grid import** with prices on the same chart. This is energy consumed in **kWh per completed interval**, not power in W/kW and not household consumption including self-consumed solar.
+
+```yaml
+show_consumption: true
+consumption_entity: sensor.your_grid_import_energy
+consumption_line_style: solid
+consumption_line_width: 1.5
+show_consumption_fill: false
+consumption_fill_fade: true
+# Optional RGB overrides, independent of price line/fill settings:
+# consumption_line_color: [110, 120, 130]
+# consumption_fill_color: [110, 120, 130]
+```
+
+Choose a cumulative **grid-import** sensor with `unit_of_measurement: kWh`, `device_class: energy` and `state_class: total_increasing` in the native **Grid-import energy** editor group. Attributes alone cannot prove the meter measures grid import: do not select a household/solar/net-export meter. The overlay defaults to **off**. When enabled it has an independent, zero-based right-hand kWh scale; price values and their scale remain unchanged. The default line is a muted, theme-responsive **1.5px**, with no fill. Solid/dashed/dotted style, width, RGB color, fill and fade are independent of the tariff settings. Empty colors restore the theme defaults, including valid black RGB overrides.
+
+The card reads Home Assistant recorder history for this one meter. For 15- or 60-minute prices it subtracts the final observed cumulative reading at/before each boundary, requiring readings within five minutes of both boundaries and no longer intervening recording gap. It never interpolates readings. Any decrease (even a small transient correction), reset, unavailable value or missing boundary makes that interval a gap, not zero. Only completed intervals appear; no future consumption is predicted. Boundary readings follow the meter's actual reporting cadence, so they are not guaranteed to land on the exact second.
+
+If history yields no valid intervals, genuine **hourly recorder `change` statistics** are used instead, explicitly labeled **kWh / 60 min**, including their full time range in the tooltip. Hourly energy is never divided into made-up quarter-hours. Partial history remains partial rather than being filled from another cadence. Recorder must record the chosen sensor; the user's account must be able to read history/statistics. Loading, missing/invalid source, unavailable history and incomplete history are shown without blocking price data. Requests are deduplicated, cached for five minutes, and refreshed on HA updates/reconnection. Disabled or missing/invalid-source cards make no energy-history/statistics calls.
+
+The legend toggles the overlay. Hover, touch and keyboard inspection include the energy value in kWh; a different energy interval (hourly fallback) shows its own time range.
+
+**Real-data example:** October 11, 2026 Tibber prices and Xemex cumulative grid-import readings, read-only from Home Assistant 2026.10.0. At the fixed example clock of 21:00:30 Europe/Amsterdam, 84 quarter-hours are complete; 74 are valid and 10 contain transient 0.001 kWh decreases and are deliberately left as gaps. The warning is genuine, not a synthetic missing-data demonstration. These are standalone captures of the built card, not a live dashboard. The source snapshot and reproducible viewer are `docs/examples/grid-import-2026-10-11.json` and `docs/examples/consumption.html`.
+
+![Real quarter-hour grid-import energy with separate kWh scale on dark desktop](docs/images/consumption-real-dark-desktop.png)
+
+<img src="docs/images/consumption-real-light-mobile.png" alt="Real grid-import energy as a subtle thin line on light mobile" width="390">
+
 ## Language
 
 The card automatically follows the Home Assistant user's frontend language: Dutch for `nl` (including regional variants), and English for English or any unsupported language. This covers the native visual editor, selector options and helper text, chart labels, tables, hover details, errors, and screen-reader announcements. Dates, decimal separators and duration labels follow the same language; times retain a compact 24-hour format in Home Assistant's configured timezone.
@@ -188,6 +219,14 @@ The default title is translated automatically. A title explicitly entered in YAM
 | `show_average_line` | No | `false` | Shows a separately labelled average for each visible graph series. |
 | `show_period_average` | No | `false` | Adds the average price of each favorable period to the table in ct/kWh, for both tariffs. |
 | `show_price_levels` | No | `true` | Shows the cheap, normal, and expensive reference lines and their price labels. |
+| `show_consumption` | No | `false` | Optional recorded grid-import interval-energy line on a separate kWh scale. |
+| `consumption_entity` | No | — | Cumulative grid-import meter in kWh, energy / total_increasing. Required for energy data, not for the price chart. |
+| `consumption_line_style` | No | `solid` | Energy line: `solid`, `dashed`, or `dotted`. |
+| `consumption_line_width` | No | `1.5` | Energy line width in px (1–8, step 0.5). |
+| `consumption_line_color` | No | Theme secondary text | Optional RGB energy line color; empty restores the theme default. |
+| `show_consumption_fill` | No | `false` | Independent energy fill, never bridging missing intervals. |
+| `consumption_fill_color` | No | Energy line color | Optional RGB energy fill color. |
+| `consumption_fill_fade` | No | `true` | Fade the energy fill vertically; does not enable fill. |
 | `import_line_style` | No | `solid` | Import line style: `solid`, `dashed`, or `dotted`. |
 | `import_line_width` | No | `3.5` | Import line thickness from 1 to 8 px. |
 | `import_line_color` | No | — | Optional RGB color override. Empty keeps automatic threshold colors. |

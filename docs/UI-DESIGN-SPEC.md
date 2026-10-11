@@ -69,6 +69,16 @@ Preserve all existing default colors, opacity, layout and interactions. Optional
 
 Keep every column heading on one baseline. Show the average-price unit once beside the table section heading, not on a second header line. Use semantic classes so Duration remains right-aligned with the average column both enabled and disabled; Avg. price is right-aligned as well. Preserve the compact table, graph, calculations and user configuration. Verify against the supplied light-mobile screenshot, one-period and multiple-period rows, Dutch/English, desktop/mobile, and the disabled option.
 
+## Optional grid-import interval energy (approved, 2026-10-11)
+
+- Add an opt-in `show_consumption` overlay using `consumption_entity`: a cumulative grid-import energy meter (`kWh`, `device_class: energy`, `state_class: total_increasing`). This is imported energy, not household use including solar and not power in W/kW.
+- Preserve the entire existing appearance and request behavior when disabled. Prices keep their existing scale. Enabled consumption uses a separate zero-based right-side kWh scale with a small, enabled-only gutter; price-threshold labels move to the plot edge.
+- Default consumption line: solid, 1.5px, theme secondary-text color, no fill. Independent flat style/width/RGB/fill/fade options reuse the tariff vocabulary in a named flattened native `Netafname energie` editor group. Empty colors restore the theme default; false and black are valid.
+- Use recorded cumulative history at the actual price cadence (15 or 60 minutes). Subtract the last observed meter values at interval boundaries, never interpolate/distribute. Require boundary observations within five minutes and reject unavailable readings, resets and longer recording gaps. Show completed intervals only. Missing values remain gaps, not zero. If no supported history intervals exist, fall back to real hourly recorder `change` statistics and label `kWh / 60 min`; never split hours into quarters.
+- Keep the compact summary and favorable-period table unchanged. Add a compact consumption legend toggle and tooltip row with its own interval time range, value and kWh unit. Show concise loading/source/history-error/no-data/partial-data status only while enabled.
+- Cache each source/time-window/connection request for five minutes, deduplicate in-flight calls, ignore obsolete asynchronous responses after configuration/disconnect changes, and refetch after HA reconnection. No history/statistics calls when disabled or the energy source is absent/invalid.
+- Verify desktop 960 and mobile 390/320, both themes, all tariff modes, true historical data, keyboard/touch, and byte-equivalent baseline geometry/colors with overlay disabled. No commit, release, install or live HA configuration writes are authorized.
+
 ## Open decisions
 Geen blokkerende ontwerpbeslissingen.
 

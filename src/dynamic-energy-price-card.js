@@ -3,6 +3,8 @@ import {
   calculateAveragePrice,
   classifyPriceLevel,
   countMissingIntervals,
+  consumptionFromHistory,
+  consumptionFromStatistics,
   createPriceTicks,
   findCurrentPoint,
   getVisiblePoints,
@@ -16,6 +18,7 @@ import {
   normalizeLineWidth,
   normalizeSelectionMode,
   offsetPriceData,
+  placeEnergyTooltip,
   rgbColorToCss,
   selectCheapestDuration,
   selectHighestDuration,
@@ -36,6 +39,11 @@ const DEFAULT_CONFIG = Object.freeze({
   show_hover_line: true,
   show_average_line: false,
   show_period_average: false,
+  show_consumption: false,
+  consumption_line_style: 'solid',
+  consumption_line_width: 1.5,
+  show_consumption_fill: false,
+  consumption_fill_fade: true,
   show_price_levels: true,
   tomorrow_after: 14,
   cheap_price: 0.15,
@@ -155,6 +163,15 @@ class DynamicEnergyPriceCard extends HTMLElement {
   static getConfigForm() {
     const labels = {
       general_settings: 'Algemeen',
+      consumption_settings: "Netafname energie",
+      show_consumption: "Verbruikslijn tonen",
+      consumption_entity: "Energiemeter netafname",
+      consumption_line_style: "Lijnstijl",
+      consumption_line_width: "Lijndikte",
+      consumption_line_color: "Vaste lijnkleur",
+      show_consumption_fill: "Vulling onder lijn",
+      consumption_fill_color: "Vulkleur",
+      consumption_fill_fade: "Vulling vervagen",
       import_settings: 'Afname',
       export_settings: 'Teruglevering',
       entity: "Prijsentity afname",
@@ -327,6 +344,18 @@ class DynamicEnergyPriceCard extends HTMLElement {
             },
           ],
         },
+        { type: 'expandable', name: 'consumption_settings', get title() { return editorText('Netafname energie'); }, flatten: true,
+          schema: [
+            { name: 'show_consumption', default: DEFAULT_CONFIG.show_consumption, selector: { boolean: {} } },
+            { name: 'consumption_entity', selector: { entity: { domain: 'sensor', device_class: 'energy' } } },
+            { name: 'consumption_line_style', default: DEFAULT_CONFIG.consumption_line_style, selector: lineStyleSelector },
+            { name: 'consumption_line_width', default: DEFAULT_CONFIG.consumption_line_width, selector: lineWidthSelector },
+            { name: 'consumption_line_color', selector: lineColorSelector },
+            { name: 'show_consumption_fill', default: DEFAULT_CONFIG.show_consumption_fill, selector: { boolean: {} } },
+            { name: 'consumption_fill_color', selector: lineColorSelector },
+            { name: 'consumption_fill_fade', default: DEFAULT_CONFIG.consumption_fill_fade, selector: { boolean: {} } },
+          ],
+        },
       ],
       computeLabel: function (schema) {
         if (!schema?.name) return schema?.title ?? '';
@@ -335,6 +364,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
       },
       computeHelper: function (schema) {
         const helpers = ({
+        show_consumption: "Toont gemeten netafname in kWh per voltooid interval, op een aparte schaal.",
+        consumption_entity: "Cumulatieve netafnamemeter in kWh (energy, total_increasing). Geen vermogen of huishoudelijk verbruik inclusief zon.",
+        consumption_line_style: "Kies doorgetrokken, gestreept of gestippeld.",
+        consumption_line_width: "Lijndikte van 1 tot 8 pixels.",
+        consumption_line_color: "Optioneel. Leeg gebruikt de secundaire thematekstkleur.",
+        show_consumption_fill: "Toont een transparante kleur onder de verbruikslijn.",
+        consumption_fill_color: "Optioneel. Leeg gebruikt de verbruikslijnkleur.",
+        consumption_fill_fade: "Laat de vulling geleidelijk transparant worden naar de onderkant.",
         graph_mode: "Kies welke tarieven in de gedeelde tijdgrafiek staan.",
         current_price_mode: "Staat los van de gekozen grafiekweergave.",
         show_title: "Verberg de titel om actieve gunstige-urencontext op die plek te tonen.",
@@ -403,6 +440,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
     if (!levels.every(Number.isFinite) || !(levels[0] < levels[1] && levels[1] < levels[2])) {
       throw new Error(this._t("Prijsniveaus moeten oplopen: goedkoop < normaal < duur."));
     }
+    this._resetConsumption();
+    this._watchConsumptionConnection();
+    this._observeConsumptionSize();
     this._lastSignature = null;
     this._activeIndex = null;
   }
@@ -453,10 +493,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._config) return;
+    this._watchConsumptionConnection();
     const importState = hass.states[this._config.entity];
     const exportState = this._config.export_entity ? hass.states[this._config.export_entity] : null;
+    const consumptionState = this._config.show_consumption ? hass.states[this._config.consumption_entity] : null;
     const minute = Math.floor(Date.now() / 60000);
-    const signature = `${this._language}|${importState?.last_updated ?? 'missing'}|${exportState?.last_updated ?? 'none'}|${minute}|${hass.themes?.darkMode ?? false}`;
+    const signature = `${this._language}|${importState?.last_updated ?? 'missing'}|${exportState?.last_updated ?? 'none'}|${consumptionState ? `${consumptionState.attributes?.unit_of_measurement}|${consumptionState.attributes?.device_class}|${consumptionState.attributes?.state_class}` : 'none'}|${minute}|${hass.themes?.darkMode ?? false}`;
     if (signature !== this._lastSignature) {
       this._lastSignature = signature;
       this._render();
@@ -465,11 +507,119 @@ class DynamicEnergyPriceCard extends HTMLElement {
 
   connectedCallback() {
     window.addEventListener('pointerdown', this._onOutsidePointer);
+    this._watchConsumptionConnection();
+    this._observeConsumptionSize();
     if (this._hass && this._config) this._render();
   }
 
   disconnectedCallback() {
     window.removeEventListener('pointerdown', this._onOutsidePointer);
+    this._unwatchConsumptionConnection();
+    this._consumptionResizeObserver?.disconnect();
+    this._consumptionResizeObserver = undefined;
+    this._resetConsumption();
+  }
+
+  _observeConsumptionSize() {
+    if (this._config?.show_consumption !== true) {
+      this._consumptionResizeObserver?.disconnect();
+      this._consumptionResizeObserver = undefined;
+      return;
+    }
+    if (this._consumptionResizeObserver || typeof ResizeObserver === 'undefined') return;
+    this._consumptionResizeObserver = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width;
+      if (!width || width === this._consumptionWidth) return;
+      this._consumptionWidth = width;
+      if (this._hass && this._config?.show_consumption) this._render();
+    });
+    this._consumptionResizeObserver.observe(this);
+  }
+
+  _unwatchConsumptionConnection() {
+    for (const event of ['ready', 'disconnected']) this._consumptionConnection?.removeEventListener(event, this._onConsumptionConnection);
+    this._consumptionConnection = undefined;
+  }
+
+  _watchConsumptionConnection() {
+    const connection = this._config?.show_consumption === true ? this._hass?.connection : undefined;
+    if (connection === this._consumptionConnection) return;
+    this._unwatchConsumptionConnection();
+    this._resetConsumption();
+    this._consumptionConnection = connection;
+    this._onConsumptionConnection = () => {
+      this._resetConsumption();
+      this._lastSignature = null;
+      if (connection?.connected !== false && this._config && this._hass) this._render();
+    };
+    for (const event of ['ready', 'disconnected']) connection?.addEventListener(event, this._onConsumptionConnection);
+  }
+
+  _resetConsumption() {
+    this._consumptionGeneration = (this._consumptionGeneration ?? 0) + 1;
+    this._consumption = undefined;
+    this._consumptionRequest = undefined;
+  }
+
+  _ensureConsumption(start, end, intervalMinutes) {
+    if (this._config.show_consumption !== true) return;
+    const entity = this._config.consumption_entity;
+    const state = this._hass?.states?.[entity];
+    if (!entity || !state) {
+      this._resetConsumption();
+      this._consumption = { status: 'source', points: [], intervalMinutes };
+      return;
+    }
+    const attrs = state.attributes;
+    if (attrs?.unit_of_measurement !== 'kWh' || attrs.device_class !== 'energy' || attrs.state_class !== 'total_increasing') {
+      this._resetConsumption();
+      this._consumption = { status: 'invalid', points: [], intervalMinutes };
+      return;
+    }
+    const key = `${entity}|${start}|${end}|${intervalMinutes}`;
+    if (this._consumptionRequest?.key === key) return;
+    if (this._consumption?.key === key && Date.now() - this._consumption.fetchedAt < 300000) return;
+    const generation = this._consumptionGeneration;
+    const hass = this._hass;
+    const request = { key };
+    this._consumptionRequest = request;
+    this._consumption = { key, status: 'loading', points: [], intervalMinutes };
+    const current = () => this._consumptionGeneration === generation && this._consumptionRequest === request;
+    (async () => {
+      let points = [];
+      let cadence = intervalMinutes;
+      let source = 'history';
+      let historyFailed = false;
+      const now = Date.now();
+      const until = Math.min(end, now);
+      try {
+        const query = new URLSearchParams({ filter_entity_id: entity, end_time: new Date(until).toISOString(), minimal_response: '', no_attributes: '', skip_initial_state: '', significant_changes_only: '0' });
+        const history = await hass.callApi('GET', `history/period/${new Date(start - 300000).toISOString()}?${query}`);
+        if (!current()) return;
+        points = consumptionFromHistory(history?.[0] ?? [], start, end, intervalMinutes, now);
+      } catch { historyFailed = true; }
+      if (!current()) return;
+      if (!points.some(point => Number.isFinite(point.energy)) && until - start >= 3600000) {
+        try {
+          const statistics = await hass.callWS({ type: 'recorder/statistics_during_period', start_time: new Date(start).toISOString(), end_time: new Date(until).toISOString(), statistic_ids: [entity], period: 'hour', types: ['change'], units: { energy: 'kWh' } });
+          points = consumptionFromStatistics(statistics?.[entity] ?? [], start, end, now);
+          cadence = 60;
+          source = 'statistics';
+        } catch {
+          if (!current()) return;
+          this._consumption = { key, fetchedAt: Date.now(), status: 'error', points: [], intervalMinutes };
+          this._consumptionRequest = undefined;
+          this._render();
+          return;
+        }
+      }
+      if (!current()) return;
+      const available = points.filter(point => Number.isFinite(point.energy)).length;
+      this._consumption = { key, fetchedAt: Date.now(), points, intervalMinutes: cadence, source,
+        status: available ? (available < points.length ? 'partial' : 'ready') : historyFailed ? 'error' : 'empty' };
+      this._consumptionRequest = undefined;
+      this._render();
+    })();
   }
 
   _render() {
@@ -559,10 +709,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const expensivePrice = Number(this._config.expensive_price);
     const svgWidth = SVG_WIDTH;
     const svgHeight = SVG_HEIGHT;
-    const plotWidth = svgWidth - PLOT.left - PLOT.right;
-    const plotHeight = svgHeight - PLOT.top - PLOT.bottom;
     const start = timeline[0].timestamp;
     const end = timeline.at(-1).timestamp + intervalMs;
+    this._ensureConsumption(start, end, intervalMinutes);
+    const consumptionEnabled = this._config.show_consumption === true;
+    const graphShowsConsumption = consumptionEnabled && !this._hiddenSeries.has('consumption');
+    const consumptionPoints = this._consumption?.points ?? [];
+    const consumptionIntervalMs = (this._consumption?.intervalMinutes ?? intervalMinutes) * 60000;
+    const chartPixels = this.shadowRoot.querySelector('.chart')?.clientWidth || Math.max(1, (this.clientWidth || 1000) - (this.clientWidth <= 520 ? 24 : 32));
+    const plotRight = PLOT.right + (graphShowsConsumption ? 32 * svgWidth / chartPixels : 0);
+    const plotWidth = svgWidth - PLOT.left - plotRight;
+    const plotHeight = svgHeight - PLOT.top - PLOT.bottom;
     const span = Math.max(intervalMs, end - start);
     const visiblePrices = timeline.flatMap((point) => [
       ...(graphShowsImport && Number.isFinite(point.importPrice) ? [point.importPrice] : []),
@@ -580,6 +737,26 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const exportPath = graphShowsExport ? seriesPath(timeline, 'exportPrice', xFor, yFor, intervalMs) : '';
     const importAppearance = this._seriesAppearance('import');
     const exportAppearance = this._seriesAppearance('export');
+    const consumptionAppearance = this._seriesAppearance('consumption');
+    const energyMaximum = Math.max(0.1, ...consumptionPoints.map(point => Number.isFinite(point.energy) ? point.energy * 1.12 : 0));
+    const energyYFor = energy => PLOT.top + (1 - energy / energyMaximum) * plotHeight;
+    const consumptionPath = graphShowsConsumption ? seriesPath(consumptionPoints, 'energy', xFor, energyYFor, consumptionIntervalMs) : '';
+    const energyLabels = graphShowsConsumption ? `<span class="chart-label energy-unit">kWh</span>` + createPriceTicks(0, energyMaximum, 5).map(value => `<span class="chart-label energy-axis-label" style="top:${energyYFor(value) / svgHeight * 100}%">${new Intl.NumberFormat(this._language, { maximumFractionDigits: 2 }).format(value)}</span>`).join('') : '';
+    const consumptionFillColor = rgbColorToCss(this._config.consumption_fill_color) ?? consumptionAppearance.stroke;
+    let consumptionAreaPath = '';
+    if (graphShowsConsumption && this._config.show_consumption_fill === true) {
+      let segment = [];
+      const close = () => {
+        if (segment.length) consumptionAreaPath += `${seriesPath(segment, 'energy', xFor, energyYFor, consumptionIntervalMs)} L ${xFor(segment.at(-1).timestamp)} ${PLOT.top + plotHeight} L ${xFor(segment[0].timestamp)} ${PLOT.top + plotHeight} Z `;
+        segment = [];
+      };
+      for (const point of consumptionPoints) {
+        if (!Number.isFinite(point.energy) || (segment.length && point.timestamp - segment.at(-1).timestamp > consumptionIntervalMs)) close();
+        if (Number.isFinite(point.energy)) segment.push(point);
+      }
+      close();
+    }
+
     const areaPath = (path, key) => path && timeline.every((point) => Number.isFinite(point[key]))
       ? `${path} L ${xFor(timeline.at(-1).timestamp)} ${PLOT.top + plotHeight} L ${xFor(start)} ${PLOT.top + plotHeight} Z`
       : '';
@@ -634,7 +811,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       const value = calculateAveragePrice(exportPoints);
       if (value !== null) averages.push({ key: 'export', label: this._t("Gem. teruglevering"), value, y: yFor(value) });
     }
-    const averageLine = averages.map((average) => `<line class="average-line ${average.key}-average" x1="${PLOT.left}" y1="${average.y}" x2="${svgWidth - PLOT.right}" y2="${average.y}" />`).join('');
+    const averageLine = averages.map((average) => `<line class="average-line ${average.key}-average" x1="${PLOT.left}" y1="${average.y}" x2="${svgWidth - plotRight}" y2="${average.y}" />`).join('');
     const positionedAverages = [...averages].sort((left, right) => left.y - right.y);
     for (let index = 1; index < positionedAverages.length; index += 1) {
       positionedAverages[index].labelY = Math.max(
@@ -659,9 +836,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const bothGraph = graphShowsImport && graphShowsExport;
     const levelClass = bothGraph ? 'neutral-level' : graphShowsExport ? 'export-level' : 'import-level';
     const levelLines = showPriceLevels ? `
-      <line x1="${PLOT.left}" y1="${cheapY}" x2="${svgWidth - PLOT.right}" y2="${cheapY}" class="level-line cheap-level" data-level-class="${levelClass}" />
-      <line x1="${PLOT.left}" y1="${normalY}" x2="${svgWidth - PLOT.right}" y2="${normalY}" class="level-line normal-level" data-level-class="${levelClass}" />
-      <line x1="${PLOT.left}" y1="${expensiveY}" x2="${svgWidth - PLOT.right}" y2="${expensiveY}" class="level-line expensive-level" data-level-class="${levelClass}" />` : '';
+      <line x1="${PLOT.left}" y1="${cheapY}" x2="${svgWidth - plotRight}" y2="${cheapY}" class="level-line cheap-level" data-level-class="${levelClass}" />
+      <line x1="${PLOT.left}" y1="${normalY}" x2="${svgWidth - plotRight}" y2="${normalY}" class="level-line normal-level" data-level-class="${levelClass}" />
+      <line x1="${PLOT.left}" y1="${expensiveY}" x2="${svgWidth - plotRight}" y2="${expensiveY}" class="level-line expensive-level" data-level-class="${levelClass}" />` : '';
     const levelLabels = showPriceLevels ? `
       <span class="chart-label level-label ${levelClass}" style="top:${(cheapY / svgHeight) * 100}%">${this._formatPrice(cheapPrice)} ct</span>
       <span class="chart-label level-label ${levelClass}" style="top:${(normalY / svgHeight) * 100}%">${this._formatPrice(normalPrice)} ct</span>
@@ -691,6 +868,11 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const missingExport = exportPoints.length ? countMissingIntervals(exportPoints, exportIntervalMinutes) : 0;
     const missingTotal = missingImport + missingExport;
     const statusParts = [];
+    if (consumptionEnabled) {
+      const statuses = { source: 'Verbruiksbron ontbreekt', invalid: 'Gebruik een cumulatieve netafnamemeter in kWh', loading: 'Verbruik laden…', error: 'Verbruikshistorie niet beschikbaar', empty: 'Geen voltooide verbruiksintervallen', partial: 'Verbruikshistorie is onvolledig' };
+      const text = statuses[this._consumption?.status];
+      if (text) statusParts.push(this._t(text));
+    }
     if (missingTotal) statusParts.push(`${missingTotal} ${missingTotal === 1 ? this._t("prijsinterval ontbreekt") : this._t("prijsintervallen ontbreken")}`);
     if (showTomorrow && !tomorrowPoints.length) statusParts.push(this._t("Morgenprijzen ontbreken"));
     else if (showTomorrow && tomorrowMinutes < 24 * 60) statusParts.push(this._t("Morgenprijzen zijn onvolledig"));
@@ -728,6 +910,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const seriesLegend = [];
     if (graphIncludesImport && !useCompactSummary) seriesLegend.push(this._seriesLegendItem('import', this._t("Afname")));
     if (graphIncludesExport) seriesLegend.push(this._seriesLegendItem('export', this._t("Teruglevering")));
+    if (consumptionEnabled) seriesLegend.push(this._seriesLegendItem('consumption', `${this._t('Netafname')} · kWh / ${this._consumption?.intervalMinutes ?? intervalMinutes} min`));
     const legendItems = [...seriesLegend, ...(showTitle ? contextLabels : [])];
     const legend = legendItems.length
       ? `<div class="legend" aria-label="${this._t("Legenda")}">${legendItems.join('')}</div>`
@@ -746,18 +929,22 @@ class DynamicEnergyPriceCard extends HTMLElement {
     this._chart = {
       timeline, importSelected, exportSelected, intervalMs, timeZone, xFor, yFor, start, span,
       cheapPrice, normalPrice, expensivePrice, svgWidth, svgHeight, graphShowsImport, graphShowsExport,
-      importAppearance, exportAppearance,
+      importAppearance, exportAppearance, plotRight, consumptionPoints, consumptionAppearance, consumptionIntervalMs, graphShowsConsumption, energyYFor,
     };
 
     this.shadowRoot.innerHTML = `
       <ha-card lang="${this._language}">
-        <div class="card-content" style="--import-fill-color:${importFillColor};--export-fill-color:${exportFillColor}">
+        <div class="card-content" style="--import-fill-color:${importFillColor};--export-fill-color:${exportFillColor};--consumption-fill-color:${consumptionFillColor}">
           ${compactSummary || `<header class="header">${heading}${currentBlock}</header>`}
           ${legend}
           ${dataStatus}
-          <div class="chart" tabindex="0" role="img" aria-label="${this._t("Elektriciteitsprijzen per interval. Gebruik de pijltjestoetsen om prijzen te bekijken.")}">
+          <div class="chart${graphShowsConsumption ? ' with-consumption' : ''}" tabindex="0" role="img" aria-label="${this._t("Elektriciteitsprijzen per interval. Gebruik de pijltjestoetsen om prijzen te bekijken.")}">
             <svg viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="none" aria-hidden="true">
               <defs>
+                <linearGradient id="consumption-area-gradient" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="var(--consumption-fill-color)" stop-opacity="0.18" />
+                  <stop offset="100%" stop-color="var(--consumption-fill-color)" stop-opacity="0.01" />
+                </linearGradient>
                 <linearGradient id="import-area-gradient" x1="0" y1="${PLOT.top}" x2="0" y2="${PLOT.top + plotHeight}" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stop-color="var(--import-fill-color)" stop-opacity="0.22" />
                   <stop offset="100%" stop-color="var(--import-fill-color)" stop-opacity="0.01" />
@@ -779,13 +966,16 @@ class DynamicEnergyPriceCard extends HTMLElement {
               ${selectionBandRects}${levelLines}${averageLine}
               ${importAreaPath ? `<path d="${importAreaPath}" class="${importAreaClass}" />` : ''}
               ${exportAreaPath ? `<path d="${exportAreaPath}" class="${exportAreaClass}" />` : ''}
+              ${consumptionAreaPath ? `<path d="${consumptionAreaPath}" class="area consumption-area${this._config.consumption_fill_fade !== false ? ' fade' : ''}" />` : ''}
               ${importPath ? `<path d="${importPath}" class="price-line import-line" style="stroke:${importAppearance.stroke};stroke-width:${importAppearance.width};stroke-dasharray:${importAppearance.dash};stroke-linecap:${importAppearance.cap}" />` : ''}
               ${exportPath ? `<path d="${exportPath}" class="price-line export-line" style="stroke:${exportAppearance.stroke};stroke-width:${exportAppearance.width};stroke-dasharray:${exportAppearance.dash};stroke-linecap:${exportAppearance.cap}" />` : ''}
+              ${consumptionPath ? `<path d="${consumptionPath}" class="price-line consumption-line" style="stroke:${consumptionAppearance.stroke};stroke-width:${consumptionAppearance.width};stroke-dasharray:${consumptionAppearance.dash};stroke-linecap:${consumptionAppearance.cap}" />` : ''}
               ${dayMarkers}${nowMarker}${hoverLine}
             </svg>
             <span class="hover-dot" data-series="import" hidden></span>
             <span class="hover-dot export-dot" data-series="export" hidden></span>
-            ${yLabels}${levelLabels}${averageLabel}${dayLabels}${nowLabel}${xLabels}
+            ${consumptionEnabled ? '<span class="hover-dot consumption-dot" data-series="consumption" hidden></span>' : ''}
+            ${yLabels}${levelLabels}${averageLabel}${dayLabels}${nowLabel}${xLabels}${energyLabels}
             <div class="tooltip" hidden></div>
           </div>
           ${favorableTable}
@@ -850,10 +1040,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
   }
 
   _seriesAppearance(type) {
-    const prefix = type === 'export' ? 'export' : 'import';
+    const prefix = type;
     const fallbackStyle = type === 'export' ? 'dashed' : 'solid';
     const style = normalizeLineStyle(this._config?.[`${prefix}_line_style`], fallbackStyle);
-    const width = normalizeLineWidth(this._config?.[`${prefix}_line_width`], 3.5);
+    const width = normalizeLineWidth(type === 'consumption' ? this._config?.consumption_line_width ?? 1.5 : this._config?.[`${prefix}_line_width`], type === 'consumption' ? 1.5 : 3.5);
     const color = rgbColorToCss(this._config?.[`${prefix}_line_color`]);
     const dash = style === 'dashed' ? '8 7' : style === 'dotted' ? '1 7' : 'none';
     const cap = style === 'dashed' ? 'butt' : 'round';
@@ -863,8 +1053,8 @@ class DynamicEnergyPriceCard extends HTMLElement {
       color,
       dash,
       cap,
-      stroke: color ?? `url(#${type === 'export' ? 'export-line-gradient' : 'price-line-gradient'})`,
-      swatchColor: color ?? 'var(--primary-color)',
+      stroke: color ?? (type === 'consumption' ? 'var(--secondary-text-color)' : `url(#${type === 'export' ? 'export-line-gradient' : 'price-line-gradient'})`),
+      swatchColor: color ?? (type === 'consumption' ? 'var(--secondary-text-color)' : 'var(--primary-color)'),
     };
   }
 
@@ -931,7 +1121,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const chart = this.shadowRoot.querySelector('.chart');
     const bounds = chart.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * this._chart.svgWidth;
-    const timestamp = this._chart.start + Math.max(0, Math.min(1, (svgX - PLOT.left) / (this._chart.svgWidth - PLOT.left - PLOT.right))) * this._chart.span;
+    const timestamp = this._chart.start + Math.max(0, Math.min(1, (svgX - PLOT.left) / (this._chart.svgWidth - PLOT.left - this._chart.plotRight))) * this._chart.span;
     let low = 0;
     let high = this._chart.timeline.length - 1;
     while (low < high) {
@@ -942,6 +1132,18 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const previous = Math.max(0, low - 1);
     const index = Math.abs(this._chart.timeline[low].timestamp - timestamp) < Math.abs(this._chart.timeline[previous].timestamp - timestamp) ? low : previous;
     this._showPoint(index);
+  }
+
+  _consumptionTooltip(timestamp) {
+    if (!this._chart.graphShowsConsumption) return null;
+    const point = this._chart.consumptionPoints.find(p => p.timestamp <= timestamp && timestamp < p.endTimestamp);
+    const value = Number.isFinite(point?.energy)
+      ? `${new Intl.NumberFormat(this._language, { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(point.energy)} kWh`
+      : '—';
+    const appearance = this._chart.consumptionAppearance;
+    const range = point ? `${this._formatTime(point.timestamp, this._chart.timeZone)}–${this._formatTime(point.endTimestamp, this._chart.timeZone)}` : '';
+    return { point, html: `<span><i class="tooltip-series ${appearance.style}" style="--series-color:${appearance.swatchColor}"></i><b>${this._t('Netafname')}</b> ${value}</span>${range && (point.timestamp !== timestamp || point.endTimestamp - point.timestamp !== this._chart.intervalMs) ? `<small>${range}</small>` : ''}`,
+      live: `${this._t('Netafname')} ${value}, ${range}` };
   }
 
   _showPoint(index) {
@@ -986,6 +1188,22 @@ class DynamicEnergyPriceCard extends HTMLElement {
     if (this._chart.graphShowsImport) showDot('import', point.importPrice, this._chart.importSelected, this._config.cheapest_hours, this._t("goedkoopste"));
     if (this._chart.graphShowsExport) showDot('export', point.exportPrice, this._chart.exportSelected, this._config.export_best_hours, this._t("beste"));
 
+    const consumption = this._consumptionTooltip(point.timestamp);
+    if (consumption) {
+      entries.push(consumption.html);
+      liveEntries.push(consumption.live);
+      const dot = this.shadowRoot.querySelector('.consumption-dot');
+      if (Number.isFinite(consumption.point?.energy)) {
+        const y = this._chart.energyYFor(consumption.point.energy);
+        anchorYs.push(y);
+        dot.removeAttribute('hidden');
+        dot.style.left = `${this._chart.xFor(consumption.point.timestamp) / this._chart.svgWidth * 100}%`;
+        dot.style.top = `${y / this._chart.svgHeight * 100}%`;
+        dot.style.borderColor = this._chart.consumptionAppearance.stroke;
+        dot.style.borderStyle = this._chart.consumptionAppearance.style;
+      } else dot?.setAttribute('hidden', '');
+    }
+
     const tooltip = this.shadowRoot.querySelector('.tooltip');
     tooltip.hidden = false;
     tooltip.innerHTML = `<strong>${this._formatTime(point.timestamp, this._chart.timeZone)}–${this._formatTime(nextTime, this._chart.timeZone)}</strong>${entries.join('')}`;
@@ -1009,6 +1227,17 @@ class DynamicEnergyPriceCard extends HTMLElement {
     const centeredX = Math.max(tooltipWidth / 2 + edge, Math.min(chartWidth - tooltipWidth / 2 - edge, anchorX));
     tooltip.style.left = `${tooltip.dataset.horizontal === 'center' ? centeredX : anchorX}px`;
     tooltip.style.top = `${anchorTop}px`;
+    if (this._chart.graphShowsConsumption) {
+      const bounds = chart.getBoundingClientRect();
+      const markers = [...this.shadowRoot.querySelectorAll('.hover-dot:not([hidden])')].map(dot => {
+        const rect = dot.getBoundingClientRect();
+        return { left: rect.left - bounds.left, right: rect.right - bounds.left, top: rect.top - bounds.top, bottom: rect.bottom - bounds.top };
+      });
+      const placement = placeEnergyTooltip(chartWidth, chartHeight, tooltipWidth, tooltipHeight, anchorX, anchorTop, markers);
+      tooltip.dataset.horizontal = 'positioned';
+      tooltip.style.left = `${placement.left}px`;
+      tooltip.style.top = `${placement.top}px`;
+    }
     const live = this.shadowRoot.querySelector('.sr-only');
     live.textContent = `${this._formatTime(point.timestamp, this._chart.timeZone)} ${this._t("tot")} ${this._formatTime(nextTime, this._chart.timeZone)}, ${liveEntries.join(', ')}.`;
   }
@@ -1018,6 +1247,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
     this.shadowRoot.querySelector('.hover-line')?.setAttribute('hidden', '');
     this.shadowRoot.querySelector('.hover-dot[data-series="import"]')?.setAttribute('hidden', '');
     this.shadowRoot.querySelector('.hover-dot[data-series="export"]')?.setAttribute('hidden', '');
+    this.shadowRoot.querySelector('.consumption-dot')?.setAttribute('hidden', '');
   }
 
   _styles() {
@@ -1108,6 +1338,11 @@ class DynamicEnergyPriceCard extends HTMLElement {
       svg { display: block; width: 100%; height: 100%; overflow: hidden; }
       .chart-label { position: absolute; z-index: 1; pointer-events: none; font-size: var(--font-size-meta); font-weight: var(--font-weight-medium); line-height: var(--line-height-tight); font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 1px 2px var(--card-background-color), 0 0 4px var(--card-background-color); }
       .x-label { bottom: 4px; transform: translateX(-50%); color: var(--secondary-text-color); }
+      .energy-axis-label { right: 1px; transform: translateY(-50%); color: var(--secondary-text-color); }
+      .energy-unit { right: 1px; top: 0; color: var(--secondary-text-color); }
+      .with-consumption .level-label { right: 34px; }
+      .consumption-area { fill: var(--consumption-fill-color); }
+      .consumption-area.fade { fill: url(#consumption-area-gradient); opacity: 1; }
       .y-label { left: 1px; transform: translateY(-50%); color: var(--secondary-text-color); }
       .day-label { top: 8px; color: var(--primary-text-color); font-size: var(--font-size-label); font-weight: var(--font-weight-strong); }
       .now-label { top: 24px; transform: translateX(-50%); color: var(--primary-text-color); font-weight: var(--font-weight-strong); }
@@ -1144,6 +1379,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .hover-dot.normal { border-color: var(--normal); }
       .hover-dot.expensive { border-color: var(--expensive); }
       .export-dot { width: 14px; height: 14px; }
+      .consumption-dot { width: 10px; height: 10px; border-width: 2px; }
       .tooltip { position: absolute; z-index: 3; min-width: 180px; padding: 9px 11px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); box-shadow: 0 5px 16px rgba(0, 0, 0, 0.2); pointer-events: none; font-variant-numeric: tabular-nums; }
       .tooltip[data-horizontal="right"][data-vertical="below"] { transform: translate(12px, 12px); }
       .tooltip[data-horizontal="right"][data-vertical="above"] { transform: translate(12px, calc(-100% - 12px)); }
@@ -1151,6 +1387,9 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .tooltip[data-horizontal="left"][data-vertical="above"] { transform: translate(calc(-100% - 12px), calc(-100% - 12px)); }
       .tooltip[data-horizontal="center"][data-vertical="below"] { transform: translate(-50%, 12px); }
       .tooltip[data-horizontal="center"][data-vertical="above"] { transform: translate(-50%, calc(-100% - 12px)); }
+      .with-consumption .tooltip { min-width: 0; padding: 7px 9px; }
+      .with-consumption .tooltip span { margin-top: 1px; line-height: 1.25; }
+      .tooltip[data-horizontal="positioned"] { transform: none; }
       .tooltip strong, .tooltip span, .tooltip small { display: block; white-space: nowrap; }
       .tooltip strong { margin-bottom: 4px; font-size: var(--font-size-label); font-weight: var(--font-weight-strong); line-height: var(--line-height-tight); }
       .tooltip span { margin-top: 2px; font-size: var(--font-size-label); line-height: var(--line-height-normal); }

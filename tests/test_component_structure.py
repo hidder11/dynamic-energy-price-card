@@ -129,7 +129,7 @@ class CardSourceTests(unittest.TestCase):
         self.assertIn("id=\"export-line-gradient\"", card)
         self.assertIn('class="price-line export-line"', card)
         self.assertIn("const dash = style === 'dashed' ? '8 7' : style === 'dotted' ? '1 7' : 'none';", card)
-        self.assertIn("stroke: color ?? `url(#${type === 'export' ? 'export-line-gradient' : 'price-line-gradient'})`", card)
+        self.assertIn("`url(#${type === 'export' ? 'export-line-gradient' : 'price-line-gradient'})`", card)
         self.assertIn('class="swatch series-swatch ${appearance.style}"', card)
         self.assertIn('--series-width:${appearance.width}px', card)
         self.assertIn('border-top: var(--series-width, 3px) solid var(--series-color);', card)

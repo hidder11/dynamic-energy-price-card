@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Real grid-import interval energy — standalone QA</title>
+<style>
+:root { --primary-color:#03a9f4; --primary-text-color:#e8eef3; --secondary-text-color:#9eabb5; --card-background-color:#17212b; --secondary-background-color:#202d38; --divider-color:rgba(255,255,255,.12); --success-color:#34c995; --error-color:#ff715f; --ha-card-border-radius:14px; font-family:Inter,ui-sans-serif,system-ui,sans-serif; background:#0f171f; color:var(--primary-text-color); }
+body {margin:0;padding:12px;} main {max-width:920px;height:calc(100vh - 44px);margin:auto;} @media(max-width:520px){main{height:calc(100vh - 24px)}}
+</style></head><body><main><dynamic-energy-price-card id="card"></dynamic-energy-price-card></main>
+<script type="module">
+const snapshot=await fetch('./grid-import-2026-10-11.json').then(r=>r.json());
+const RealDate=Date;const now=RealDate.parse(snapshot.provenance.snapshot_now);
+window.Date=class extends RealDate {constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}};
+await import('../../dist/dynamic-energy-price-card.js');
+if(!customElements.get('ha-card'))customElements.define('ha-card',class extends HTMLElement{connectedCallback(){this.style.display='block';this.style.background='var(--card-background-color)';this.style.borderRadius='var(--ha-card-border-radius)';}});
+window.energySnapshot=snapshot;window.apiCalls=[];window.statisticsCalls=[];
+const params=new URLSearchParams(location.search);const entity=snapshot.provenance.consumption_entity;
+window.exampleConfig={entity:'sensor.tibber_prijzen',show_title:false,cheapest_hours:4,import_selection_mode:'contiguous',show_cheapest_table:true,tomorrow_after:24,show_consumption:params.get('off')!=='1',consumption_entity:entity};
+window.exampleHass={language:'en',locale:{language:'en'},config:{time_zone:snapshot.provenance.time_zone},themes:{darkMode:true},states:{'sensor.tibber_prijzen':{attributes:{data:snapshot.prices},last_updated:'snapshot'},[entity]:{attributes:{unit_of_measurement:'kWh',device_class:'energy',state_class:'total_increasing'},last_updated:'snapshot'}},
+callApi:async(method,path)=>{apiCalls.push({method,path});await new Promise(r=>setTimeout(r,30));return [snapshot.history];},
+callWS:async(msg)=>{statisticsCalls.push(msg);return {[entity]:snapshot.hourly_statistics};}};
+if(params.get('theme')==='light'){
+for(const [k,v]of Object.entries({'--primary-text-color':'#212121','--secondary-text-color':'#666666','--card-background-color':'#fff','--secondary-background-color':'#f1f3f5','--divider-color':'rgba(0,0,0,.12)','--success-color':'#19a974','--error-color':'#e45c4f'}))document.documentElement.style.setProperty(k,v);
+document.documentElement.style.background='#eef1f4';exampleHass.themes.darkMode=false;}
+window.card=document.querySelector('#card');card.setConfig(exampleConfig);card.hass=exampleHass;window.exampleReady=true;
+</script></body></html>

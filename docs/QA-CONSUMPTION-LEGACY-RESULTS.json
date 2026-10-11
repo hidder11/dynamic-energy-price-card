@@ -1,0 +1,128 @@
+[
+  {
+    "width": 960,
+    "result": {
+      "language": [
+        {
+          "language": "en",
+          "editorFields": 59,
+          "keyboard": true,
+          "touch": true,
+          "legend": true,
+          "disabledGuides": true,
+          "missingValue": true
+        },
+        {
+          "language": "nl",
+          "editorFields": 59,
+          "keyboard": true,
+          "touch": true,
+          "legend": true,
+          "disabledGuides": true,
+          "missingValue": true
+        }
+      ],
+      "colors": [
+        {
+          "width": 960,
+          "theme": "dark",
+          "palette": "default",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [],
+          "result": "PASS"
+        },
+        {
+          "width": 960,
+          "theme": "dark",
+          "palette": "custom",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [],
+          "result": "PASS"
+        },
+        {
+          "width": 960,
+          "theme": "light",
+          "palette": "default",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [],
+          "result": "PASS"
+        },
+        {
+          "width": 960,
+          "theme": "light",
+          "palette": "custom",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [],
+          "result": "PASS"
+        }
+      ]
+    }
+  },
+  {
+    "width": 390,
+    "result": {
+      "language": [
+        {
+          "language": "en",
+          "editorFields": 59,
+          "keyboard": true,
+          "touch": true,
+          "legend": true,
+          "disabledGuides": true,
+          "missingValue": true
+        },
+        {
+          "language": "nl",
+          "editorFields": 59,
+          "keyboard": true,
+          "touch": true,
+          "legend": true,
+          "disabledGuides": true,
+          "missingValue": true
+        }
+      ],
+      "colors": [
+        {
+          "width": 390,
+          "theme": "dark",
+          "palette": "default",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [
+            96
+          ],
+          "result": "PASS"
+        },
+        {
+          "width": 390,
+          "theme": "dark",
+          "palette": "custom",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [
+            96
+          ],
+          "result": "PASS"
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "palette": "default",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [
+            96
+          ],
+          "result": "PASS"
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "palette": "custom",
+          "tooltipPoints": 7,
+          "existingTooltipOverlaps": [
+            96
+          ],
+          "result": "PASS"
+        }
+      ]
+    }
+  }
+]
