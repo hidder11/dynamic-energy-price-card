@@ -1459,10 +1459,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
       importAppearance, exportAppearance, plotRight, consumptionPoints, consumptionAppearance, consumptionIntervalMs, graphShowsConsumption, energyYFor,
     };
 
-    // Reveal data only once per card instance, after real intervals arrive.
-    // Background hass updates and legend toggles must not replay the entrance.
-    const animateChart = !this._chartHasLoaded;
-    this._chartHasLoaded = true;
+    // HA may render while detached, and render again immediately on connection.
+    // Only consume the entrance once attached; preserve progress across renders.
+    const previousEntrance = this.shadowRoot.querySelector('.chart-enter')?.getAnimations?.()
+      .find(animation => animation.animationName === 'chart-reveal'
+        && animation.playState !== 'finished' && Number(animation.currentTime ?? 0) < 650);
+    const entranceProgress = Number(previousEntrance?.currentTime ?? 0);
+    const animateChart = this.isConnected && (!this._chartHasLoaded || Boolean(previousEntrance));
+    if (this.isConnected) this._chartHasLoaded = true;
     this.shadowRoot.innerHTML = `
       <ha-card lang="${this._language}">
         <div class="card-content" style="--import-fill-color:${importFillColor};--export-fill-color:${exportFillColor};--consumption-fill-color:${consumptionFillColor}">
@@ -1516,6 +1520,11 @@ class DynamicEnergyPriceCard extends HTMLElement {
         </div>
       </ha-card>
       <style>${this._styles()}</style>`;
+    if (animateChart && entranceProgress > 0) {
+      const entrance = this.shadowRoot.querySelector('.chart-enter')?.getAnimations?.()
+        .find(animation => animation.animationName === 'chart-reveal');
+      if (entrance) entrance.currentTime = entranceProgress;
+    }
     this._bindInteractions();
   }
 

@@ -16,7 +16,7 @@ A compact Home Assistant dashboard card for dynamic electricity tariffs. View th
 - **Make it your own:** customize price colors, period highlights, line styles, and optional fills—or keep the original appearance.
 - **Keep your dashboard compact:** use a responsive chart, optional period table, and Home Assistant's native visual editor and Sections sizing.
 
-The graph reveals its lines and fills from left to right when price data first loads (650 ms). Routine updates and series toggles do not replay the animation. The device's reduced-motion preference disables it automatically.
+The graph reveals its lines and fills from left to right when price data first loads into the attached card (650 ms). Initial rendering before dashboard insertion does not consume the animation; updates during the reveal preserve its progress. Routine updates and series toggles do not replay the animation. The device's reduced-motion preference disables it automatically.
 
 Works with hourly or quarter-hour price intervals in the supported sensor format. Import-only is the default; export is optional. The card displays data from your sensors—it does not fetch tariffs or control appliances.
 
