@@ -943,6 +943,10 @@ class DynamicEnergyPriceCard extends HTMLElement {
       importAppearance, exportAppearance, plotRight, consumptionPoints, consumptionAppearance, consumptionIntervalMs, graphShowsConsumption, energyYFor,
     };
 
+    // Reveal data only once per card instance, after real intervals arrive.
+    // Background hass updates and legend toggles must not replay the entrance.
+    const animateChart = !this._chartHasLoaded;
+    this._chartHasLoaded = true;
     this.shadowRoot.innerHTML = `
       <ha-card lang="${this._language}">
         <div class="card-content" style="--import-fill-color:${importFillColor};--export-fill-color:${exportFillColor};--consumption-fill-color:${consumptionFillColor}">
@@ -975,12 +979,14 @@ class DynamicEnergyPriceCard extends HTMLElement {
                 </linearGradient>
               </defs>
               ${selectionBandRects}${levelLines}${averageLine}
+              <g class="chart-series${animateChart ? ' chart-enter' : ''}">
               ${importAreaPath ? `<path d="${importAreaPath}" class="${importAreaClass}" />` : ''}
               ${exportAreaPath ? `<path d="${exportAreaPath}" class="${exportAreaClass}" />` : ''}
               ${consumptionAreaPath ? `<path d="${consumptionAreaPath}" class="area consumption-area${this._config.consumption_fill_fade !== false ? ' fade' : ''}" />` : ''}
               ${importPath ? `<path d="${importPath}" class="price-line import-line" style="stroke:${importAppearance.stroke};stroke-width:${importAppearance.width};stroke-dasharray:${importAppearance.dash};stroke-linecap:${importAppearance.cap}" />` : ''}
               ${exportPath ? `<path d="${exportPath}" class="price-line export-line" style="stroke:${exportAppearance.stroke};stroke-width:${exportAppearance.width};stroke-dasharray:${exportAppearance.dash};stroke-linecap:${exportAppearance.cap}" />` : ''}
               ${consumptionPath ? `<path d="${consumptionPath}" class="price-line consumption-line" style="stroke:${consumptionAppearance.stroke};stroke-width:${consumptionAppearance.width};stroke-dasharray:${consumptionAppearance.dash};stroke-linecap:${consumptionAppearance.cap}" />` : ''}
+              </g>
               ${dayMarkers}${nowMarker}${hoverLine}
             </svg>
             <span class="hover-dot" data-series="import" hidden></span>
@@ -1383,6 +1389,11 @@ class DynamicEnergyPriceCard extends HTMLElement {
       .import-area.fade { fill: url(#import-area-gradient); opacity: 1; }
       .export-area.fade { fill: url(#export-area-gradient); opacity: 1; }
       .price-line { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+      .chart-enter { animation: chart-reveal 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+      @keyframes chart-reveal {
+        from { clip-path: inset(0 100% 0 0); }
+        to { clip-path: inset(0 0 0 0); }
+      }
       .level-line { stroke-opacity: 0.55; stroke-dasharray: 5 5; stroke-width: 1; vector-effect: non-scaling-stroke; }
       .cheap-level[data-level-class="import-level"] { stroke: var(--cheap); }
       .normal-level { stroke: var(--normal); }
@@ -1461,7 +1472,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
         .current-metric { flex: 1 1 0; justify-items: stretch; }
         .current { justify-content: center; }
       }
-      @media (prefers-reduced-motion: reduce) { .tooltip { transition: none; } }
+      @media (prefers-reduced-motion: reduce) { .chart-enter { animation: none; } .tooltip { transition: none; } }
     `;
   }
 }
