@@ -45,7 +45,7 @@ test('table headings stay single-line and duration alignment is independent of t
     assert.match(html, /<td class="period-duration">15 min<\/td>/);
     assert.doesNotMatch(html, /<br>/);
     if (enabled) {
-      assert.match(html, /<th class="period-average">Avg\. price<\/th>/);
+      assert.match(html, /<th class="period-average">~ct<\/th>/);
       assert.match(html, /<span class="table-unit">ct\/kWh<\/span>/);
     } else assert.doesNotMatch(html, /table-unit/);
   }
@@ -67,7 +67,7 @@ test('optional average column is off by default and localizes import and correct
   for (const language of ['en', 'nl']) {
     card._hass = { language };
     const html = render();
-    assert.match(html, language === 'en' ? /Avg\. price/ : /Gem\. prijs/);
+    assert.match(html, /~ct/);
     assert.match(html, language === 'en' ? /10\.00/ : /10,00/);
     assert.match(html, language === 'en' ? /-2\.00/ : /-2,00/);
     assert.match(html, /ct\/kWh/);

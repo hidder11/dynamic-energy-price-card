@@ -166,7 +166,11 @@ Enable **Average price in table** under **General** in the visual editor, or add
 show_period_average: true
 ```
 
-This adds an **Avg. price** column in ct/kWh to the favorable-period table. The unit appears beside the table title so all column headings stay on one line; duration and average values align to the right. Each row averages only the price intervals inside that period, separately for import and export. Export averages include `export_price_offset`. With the supported equal-duration intervals, each interval has equal weight. The option defaults to `false`, does not enable a table by itself, and is independent of `show_average_line`. On mobile, the optional six-column table uses compact spacing; very narrow cards can scroll the table horizontally without widening the dashboard.
+This adds a **~ct** average-price column in ct/kWh to the favorable-period table. The unit appears beside the table title so all column headings stay on one line; duration and average values align to the right. Each row averages only the price intervals inside that period, separately for import and export. Export averages include `export_price_offset`. With the supported equal-duration intervals, each interval has equal weight. The option defaults to `false`, does not enable a table by itself, and is independent of `show_average_line`. On mobile, the optional six-column table uses compact spacing; very narrow cards can scroll the table horizontally without widening the dashboard.
+
+### Choose table columns
+
+Under **General**, switch each table column on or off independently: day, tariff, start, end, duration and average price. This applies to both tariffs. All existing columns remain enabled by default; average price remains off. If every column is disabled, the table section is hidden. Compact rows use **Today / Tmr.** and **Imp. / Exp.** in English, or **Vdg. / Mrg.** and **Af. / Ter.** in Dutch. Hover and screen-reader labels retain the full day and tariff meanings. Chart labels remain unchanged.
 
 ### Grid-import energy per interval (optional)
 
@@ -218,6 +222,11 @@ The default title is translated automatically. A title explicitly entered in YAM
 | `show_hover_line` | No | `true` | Shows a guide line for the active tooltip interval. |
 | `show_average_line` | No | `false` | Shows a separately labelled average for each visible graph series. |
 | `show_period_average` | No | `false` | Adds the average price of each favorable period to the table in ct/kWh, for both tariffs. |
+| `show_period_day` | No | `true` | Show the compact day column in the period table. |
+| `show_period_type` | No | `true` | Show the compact import/export tariff column. |
+| `show_period_start` | No | `true` | Show period start times. |
+| `show_period_end` | No | `true` | Show period end times. |
+| `show_period_duration` | No | `true` | Show period durations. |
 | `show_price_levels` | No | `true` | Shows the cheap, normal, and expensive reference lines and their price labels. |
 | `show_consumption` | No | `false` | Optional recorded grid-import interval-energy line on a separate kWh scale. |
 | `consumption_entity` | No | — | Cumulative grid-import meter in kWh, energy / total_increasing. Required for energy data, not for the price chart. |

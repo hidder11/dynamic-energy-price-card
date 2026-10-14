@@ -380,6 +380,10 @@ const ENGLISH = Object.freeze({
   "Optioneel. Leeg gebruikt de secundaire thematekstkleur.": "Optional. Empty uses the secondary theme text color.",
   "Toont een transparante kleur onder de verbruikslijn.": "Shows a transparent fill below the consumption line.",
   "Optioneel. Leeg gebruikt de verbruikslijnkleur.": "Optional. Empty uses the consumption line color.",
+  "Vdg.": "Today",
+  "Mrg.": "Tmr.",
+  "Af.": "Imp.",
+  "Ter.": "Exp.",
   "Afname": "Import",
   "Teruglevering": "Export",
   "Afname en teruglevering": "Import and export",
@@ -400,6 +404,11 @@ const ENGLISH = Object.freeze({
   "Verticale hoverlijn": "Vertical hover line",
   "Gemiddelde prijslijn": "Average price line",
   "Gemiddelde prijs in tabel": "Average price in table",
+  "Dag in tabel": "Day column in table",
+  "Tarief in tabel": "Tariff column in table",
+  "Starttijd in tabel": "Start time column in table",
+  "Eindtijd in tabel": "End time column in table",
+  "Duur in tabel": "Duration column in table",
   "Gem. prijs": "Avg. price",
   "Toont de gemiddelde prijs per periode in de afname- en teruglevertabel, in ct/kWh.": "Shows the average price per period in the import and export table, in ct/kWh.",
   "Prijsgrenzen tonen": "Show price thresholds",
@@ -546,6 +555,11 @@ const DEFAULT_CONFIG = Object.freeze({
   show_hover_line: true,
   show_average_line: false,
   show_period_average: false,
+  show_period_day: true,
+  show_period_type: true,
+  show_period_start: true,
+  show_period_end: true,
+  show_period_duration: true,
   show_consumption: false,
   consumption_line_style: 'solid',
   consumption_line_width: 1.5,
@@ -691,6 +705,11 @@ class DynamicEnergyPriceCard extends HTMLElement {
       show_hover_line: "Verticale hoverlijn",
       show_average_line: "Gemiddelde prijslijn",
       show_period_average: "Gemiddelde prijs in tabel",
+      show_period_day: "Dag in tabel",
+      show_period_type: "Tarief in tabel",
+      show_period_start: "Starttijd in tabel",
+      show_period_end: "Eindtijd in tabel",
+      show_period_duration: "Duur in tabel",
       show_price_levels: "Prijsgrenzen tonen",
       import_line_style: "Lijnstijl",
       import_line_width: "Lijndikte",
@@ -766,6 +785,7 @@ class DynamicEnergyPriceCard extends HTMLElement {
             { name: 'show_hover_line', default: DEFAULT_CONFIG.show_hover_line, selector: { boolean: {} } },
             { name: 'show_average_line', default: DEFAULT_CONFIG.show_average_line, selector: { boolean: {} } },
             { name: 'show_period_average', default: DEFAULT_CONFIG.show_period_average, selector: { boolean: {} } },
+            ...['day', 'type', 'start', 'end', 'duration'].map(column => ({ name: `show_period_${column}`, default: DEFAULT_CONFIG[`show_period_${column}`], selector: { boolean: {} } })),
             { name: 'show_price_levels', default: DEFAULT_CONFIG.show_price_levels, selector: { boolean: {} } },
             { name: 'tomorrow_after', default: DEFAULT_CONFIG.tomorrow_after, required: true, selector: numberSelector('uur') },
             { name: 'cheap_price', default: DEFAULT_CONFIG.cheap_price, required: true, selector: thresholdSelector },
@@ -1532,17 +1552,29 @@ class DynamicEnergyPriceCard extends HTMLElement {
       ...exportPeriods.map((period) => ({ ...period, type: 'export' })),
     ].sort((left, right) => left.startTimestamp - right.startTimestamp || left.type.localeCompare(right.type));
     const showAverage = this._config.show_period_average === true;
-    const averageHeader = showAverage ? `<th class="period-average">${this._t("Gem. prijs")}</th>` : '';
+    const columns = ['day', 'type', 'start', 'end', 'duration', 'average'].filter(column => column === 'average' ? showAverage : this._config[`show_period_${column}`] !== false);
+    if (!columns.length) return '';
+    const headings = { day: this._t("Dag"), type: this._t("Moment"), start: this._t("Start"), end: this._t("Einde"), duration: this._t("Duur"), average: '~ct' };
+    const headers = columns.map(column => `<th class="period-${column}">${headings[column]}</th>`).join('');
     const rows = periods.map((period) => {
       const { type } = period;
       const typeLabel = type === 'import' ? this._t("Afname") : this._t("Teruglevering");
       const duration = formatDuration(period.durationMinutes, this._language);
-      const day = period.dayKey === todayKey ? this._t("Vandaag") : period.dayKey === tomorrowKey ? this._t("Morgen") : period.dayKey;
-      const averageCell = showAverage ? `<td class="period-average">${Number.isFinite(period.averagePrice) ? this._formatPrice(period.averagePrice) : '—'}</td>` : '';
-      return `<tr><td>${day}</td><td><span class="period-type ${type}">${typeLabel}</span></td><td>${this._formatTime(period.startTimestamp, timeZone)}</td><td>${this._formatTime(period.endTimestamp, timeZone)}</td><td class="period-duration">${duration}</td>${averageCell}</tr>`;
+      const dayLabel = period.dayKey === todayKey ? this._t("Vandaag") : period.dayKey === tomorrowKey ? this._t("Morgen") : period.dayKey;
+      const day = period.dayKey === todayKey ? this._t("Vdg.") : period.dayKey === tomorrowKey ? this._t("Mrg.") : period.dayKey;
+      const compactType = type === 'import' ? this._t("Af.") : this._t("Ter.");
+      const cells = {
+        day: `<span title="${escapeHtml(dayLabel)}" aria-label="${escapeHtml(dayLabel)}">${escapeHtml(day)}</span>`,
+        type: `<span class="period-type ${type}" title="${typeLabel}" aria-label="${typeLabel}">${compactType}</span>`,
+        start: this._formatTime(period.startTimestamp, timeZone),
+        end: this._formatTime(period.endTimestamp, timeZone),
+        duration,
+        average: Number.isFinite(period.averagePrice) ? this._formatPrice(period.averagePrice) : '—',
+      };
+      return `<tr>${columns.map(column => `<td class="period-${column}">${cells[column]}</td>`).join('')}</tr>`;
     }).join('');
     return `<section class="price-table-wrap"><h3>${this._t("Gunstige momenten")}${showAverage ? '<span class="table-unit">ct/kWh</span>' : ''}</h3>
-      <table class="cheapest-table favorable-table${showAverage ? ' with-average' : ''}"><thead><tr><th>${this._t("Dag")}</th><th>${this._t("Moment")}</th><th>${this._t("Start")}</th><th>${this._t("Einde")}</th><th class="period-duration">${this._t("Duur")}</th>${averageHeader}</tr></thead><tbody>${rows}</tbody></table>
+      <table class="cheapest-table favorable-table${showAverage ? ' with-average' : ''}"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
     </section>`;
   }
 
@@ -1935,11 +1967,12 @@ class DynamicEnergyPriceCard extends HTMLElement {
         .data-status { margin-top: 2px; }
         .chart { flex-basis: 260px; min-height: 110px; }
         .tooltip { min-width: 166px; }
-        .cheapest-table.with-average { font-size: 11px; }
-        .cheapest-table.with-average th, .cheapest-table.with-average td { padding-inline: 1px; }
-        .cheapest-table.with-average .period-type { padding-inline: 3px; }
+        .cheapest-table { font-size: 11px; }
+        .cheapest-table th, .cheapest-table td { padding-inline: 1px; }
+        .cheapest-table .period-type { padding-inline: 3px; }
       }
       @media (max-width: 360px) {
+        .cheapest-table { font-size: 10px; }
         .current-block { justify-content: stretch; }
         .current-metric { flex: 1 1 0; justify-items: stretch; }
         .current { justify-content: center; }
